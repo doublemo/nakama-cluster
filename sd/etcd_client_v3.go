@@ -49,7 +49,7 @@ type EtcdClientOptions struct {
 	Password string
 }
 
-// NewEtcdV3Client returns ServiceDiscoveryClient with a connection to the named machines. It will
+// NewEtcdV3Client returns Client with a connection to the named machines. It will
 // return an error if a connection to the cluster cannot be made.
 func NewEtcdV3Client(ctx context.Context, machines []string, options EtcdClientOptions) (Client, error) {
 	if options.DialTimeout == 0 {
@@ -159,7 +159,6 @@ func (c *EtcdV3Client) Register(s Service) error {
 		return err
 	}
 	c.leaseID = grantResp.ID
-
 	_, err = c.kv.Put(
 		c.ctx,
 		s.Key,

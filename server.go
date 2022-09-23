@@ -3,6 +3,7 @@ package nakamacluster
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/doublemo/nakama-cluster/sd"
@@ -28,16 +29,30 @@ type Config struct {
 }
 
 type Server struct {
-	ctx        context.Context
-	cancelFn   context.CancelFunc
-	sdClient   sd.Client
-	memberlist *memberlist.Memberlist
-	peers      map[string]*Peer
-	config     Config
+	ctx         context.Context
+	cancelFn    context.CancelFunc
+	sdClient    sd.Client
+	memberlist  *memberlist.Memberlist
+	localNode   *Node
+	nakamaPeers *Peer
+	microPeers  atomic.Value
+	msgQueue    *memberlist.TransmitLimitedQueue
+	msgChan     chan Broadcast
+	config      Config
 
 	logger *zap.Logger
 	once   sync.Once
 	sync.RWMutex
+}
+
+func (s *Server) Broadcast(msg Broadcast) bool {
+	select {
+	case s.msgChan <- msg:
+		return true
+	case <-s.ctx.Done():
+	default:
+	}
+	return false
 }
 
 func (s *Server) Stop() {
@@ -50,11 +65,23 @@ func (s *Server) Stop() {
 
 func (s *Server) serve() {
 	watchCh := make(chan struct{}, 1)
+	s.sdClient.Register(s.localNode.ToService(s.config.Prefix))
+	defer func() {
+		s.sdClient.Deregister(s.localNode.ToService(s.config.Prefix))
+		s.memberlist.Leave(time.Second * 5)
+	}()
+
 	go s.sdClient.WatchPrefix(s.config.Prefix, watchCh)
 	for {
 		select {
+		case msg, ok := <-s.msgChan:
+			if !ok {
+				return
+			}
+			s.msgQueue.QueueBroadcast(&msg)
+
 		case <-watchCh:
-			s.handelWatchNodes()
+			s.watchNodes()
 
 		case <-s.ctx.Done():
 			return
@@ -62,52 +89,91 @@ func (s *Server) serve() {
 	}
 }
 
-func (s *Server) handelWatchNodes() {
-	entries, err := s.sdClient.GetEntries(s.config.Prefix)
+func (s *Server) watchNodes() {
+	nodes, err := s.nodes()
 	if err != nil {
-		s.logger.Warn("GetEntries failed", zap.Error(err))
+		s.logger.Warn("Load nodes failed", zap.Error(err))
 		return
 	}
 
-	nodes := make([]string, len(entries))
-	for _, item := range entries {
-		node := Node{}
-		if err := node.FromString(item); err != nil {
-			s.logger.Warn("invalid node", zap.Error(err))
+	microPeers := make(map[string]*Peer)
+	for _, node := range nodes {
+		if node.NodeType == NODE_TYPE_NAKAMA {
 			continue
 		}
 
-		nodes = append(nodes, node.Id)
-		s.RLock()
-		peer, ok := s.peers[node.Name]
-		s.RUnlock()
-		if !ok {
-			peer = NewPeer()
+		if _, ok := microPeers[node.Name]; !ok {
+			microPeers[node.Name] = NewPeer()
 		}
-
-		peer.Add(node)
-		s.Lock()
-		s.peers[node.Id] = peer
-		s.Unlock()
+		microPeers[node.Name].Add(*node)
 	}
-
-	s.memberlist.Join(nodes)
-	s.memberlist.UpdateNode(time.Second)
+	s.microPeers.Store(microPeers)
 }
 
-func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, c Config) *Server {
+func (s *Server) up(list *memberlist.Memberlist) {
+	nodes, err := s.nodes()
+	if err != nil {
+		s.logger.Warn("join failed", zap.Error(err))
+		return
+	}
+
+	joins := make([]string, 0)
+	for _, node := range nodes {
+		if node == nil || node.Id == s.localNode.Id || node.NodeType != NODE_TYPE_NAKAMA {
+			continue
+		}
+
+		joins = append(joins, node.Addr)
+	}
+
+	if _, err := list.Join(joins); err != nil {
+		s.logger.Error("Join failed", zap.Error(err))
+		return
+	}
+}
+
+func (s *Server) nodes() ([]*Node, error) {
+	entries, err := s.sdClient.GetEntries(s.config.Prefix)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes := make([]*Node, len(entries))
+	for k, v := range entries {
+		node := Node{}
+		if err := node.FromString(v); err != nil {
+			s.logger.Warn("invalid node", zap.Error(err))
+			continue
+		}
+		nodes[k] = &node
+	}
+	return nodes, nil
+}
+
+func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node Node, c Config) *Server {
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
-		ctx:      ctx,
-		cancelFn: cancel,
-		sdClient: client,
-		logger:   logger,
-		config:   c,
-		peers:    make(map[string]*Peer),
+		ctx:         ctx,
+		cancelFn:    cancel,
+		sdClient:    client,
+		logger:      logger,
+		config:      c,
+		nakamaPeers: NewPeer(),
+		localNode:   &node,
+		msgChan:     make(chan Broadcast, 128),
+	}
+
+	s.microPeers.Store(make(map[string]*Peer))
+	s.msgQueue = &memberlist.TransmitLimitedQueue{
+		NumNodes: func() int {
+			return s.nakamaPeers.Len()
+		},
+		RetransmitMult: 3,
 	}
 
 	delegate := newDelegate(logger, s)
 	memberlistConfig := buildMemberListConfig(c)
+	memberlistConfig.Name = node.Id
 	memberlistConfig.Ping = delegate
 	memberlistConfig.Delegate = delegate
 	memberlistConfig.Events = delegate
@@ -117,7 +183,7 @@ func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, c Conf
 		logger.Fatal("Create memberlist failed", zap.Error(err))
 	}
 	s.memberlist = list
-
+	s.up(list)
 	go s.serve()
 	return s
 }
@@ -125,7 +191,7 @@ func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, c Conf
 func NewConfig() *Config {
 	return &Config{
 		Addr:                "0.0.0.0",
-		Port:                7352,
+		Port:                7355,
 		Prefix:              "/nakama-cluster/services/",
 		Weight:              1,
 		PushPullInterval:    10,

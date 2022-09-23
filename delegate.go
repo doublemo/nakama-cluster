@@ -1,6 +1,10 @@
 package nakamacluster
 
-import "go.uber.org/zap"
+import (
+	"fmt"
+
+	"go.uber.org/zap"
+)
 
 type Delegate struct {
 	logger *zap.Logger
@@ -11,7 +15,7 @@ type Delegate struct {
 // when broadcasting an alive message. It's length is limited to
 // the given byte size. This metadata is available in the Node structure.
 func (s *Delegate) NodeMeta(limit int) []byte {
-	return []byte{}
+	return s.server.localNode.ToBytes()
 }
 
 // NotifyMsg is called when a user-data message is received.
@@ -19,7 +23,7 @@ func (s *Delegate) NodeMeta(limit int) []byte {
 // so would block the entire UDP packet receive loop. Additionally, the byte
 // slice may be modified after the call returns, so it should be copied if needed
 func (s *Delegate) NotifyMsg(msg []byte) {
-	s.logger.Debug("NotifyMsg:", zap.Binary("message", msg))
+	fmt.Println("----------1--1-------->", msg)
 }
 
 // GetBroadcasts is called when user data messages can be broadcast.
@@ -29,7 +33,7 @@ func (s *Delegate) NotifyMsg(msg []byte) {
 // the limit. Care should be taken that this method does not block,
 // since doing so would block the entire UDP packet receive loop.
 func (s *Delegate) GetBroadcasts(overhead, limit int) [][]byte {
-	return nil
+	return s.server.msgQueue.GetBroadcasts(overhead, limit)
 }
 
 // LocalState is used for a TCP Push/Pull. This is sent to
@@ -44,7 +48,8 @@ func (s *Delegate) LocalState(join bool) []byte {
 // state received from the remote side and is the result of the
 // remote side's LocalState call. The 'join'
 // boolean indicates this is for a join instead of a push/pull.
-func (s *Delegate) MergeRemoteState(buf []byte, join bool) {}
+func (s *Delegate) MergeRemoteState(buf []byte, join bool) {
+}
 
 func newDelegate(logger *zap.Logger, s *Server) *Delegate {
 	return &Delegate{

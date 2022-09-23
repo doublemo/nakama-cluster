@@ -14,9 +14,11 @@ type Peer struct {
 
 func (peer *Peer) Add(node Node) {
 	peer.Lock()
-	peer.ring.AddNode(node.Id)
+	defer peer.Unlock()
+	if _, ok := peer.nodes[node.Id]; !ok {
+		peer.ring.AddNode(node.Id)
+	}
 	peer.nodes[node.Id] = &node
-	peer.Unlock()
 }
 
 func (peer *Peer) Delete(id string) {
@@ -24,6 +26,12 @@ func (peer *Peer) Delete(id string) {
 	peer.ring.RemoveNode(id)
 	delete(peer.nodes, id)
 	peer.Unlock()
+}
+
+func (peer *Peer) Len() int {
+	peer.RLock()
+	defer peer.RUnlock()
+	return len(peer.nodes)
 }
 
 func (peer *Peer) GetNodeWithHashRing(k string) (*Node, bool) {
