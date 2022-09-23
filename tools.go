@@ -16,5 +16,6 @@ func buildMemberListConfig(c Config) *memberlist.Config {
 	memberlistConfig.ProbeTimeout = time.Duration(c.ProbeTimeout) * time.Millisecond
 	memberlistConfig.UDPBufferSize = c.MaxGossipPacketSize
 	memberlistConfig.TCPTimeout = time.Duration(c.TCPTimeout) * time.Second
+	memberlistConfig.RetransmitMult = c.RetransmitMult
 	return memberlistConfig
 }

@@ -11,7 +11,9 @@ import (
 	"time"
 
 	nakamacluster "github.com/doublemo/nakama-cluster"
+	"github.com/doublemo/nakama-cluster/pb"
 	"github.com/doublemo/nakama-cluster/sd"
+	"github.com/golang/protobuf/proto"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -61,12 +63,19 @@ func main() {
 			case <-t.C:
 				data := make([]byte, 32)
 				binary.BigEndian.PutUint32(data, rand.Uint32())
-				msg := nakamacluster.NewBroadcast("test", data)
+				msg := nakamacluster.NewBroadcast(&pb.Notify{Id: rand.Uint64(), Payload: &pb.Notify_Online{Online: "ddsdafsdfsd"}})
 				s.Broadcast(*msg)
 			case <-ctx.Done():
 			}
 		}
 	}()
+
+	s.OnNotifyMsg(func(msg []byte) {
+		data := pb.Notify{}
+		proto.Unmarshal(msg, &data)
+		fmt.Println("---------------d-----", data.Id)
+	})
+
 	sign := make(chan os.Signal, 1)
 	signal.Notify(sign, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	select {

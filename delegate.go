@@ -1,10 +1,10 @@
 package nakamacluster
 
 import (
-	"fmt"
-
 	"go.uber.org/zap"
 )
+
+type NotifyMsgHandle func(msg []byte)
 
 type Delegate struct {
 	logger *zap.Logger
@@ -23,7 +23,9 @@ func (s *Delegate) NodeMeta(limit int) []byte {
 // so would block the entire UDP packet receive loop. Additionally, the byte
 // slice may be modified after the call returns, so it should be copied if needed
 func (s *Delegate) NotifyMsg(msg []byte) {
-	fmt.Println("----------1--1-------->", msg)
+	if handler, ok := s.server.onNotifyMsg.Load().(NotifyMsgHandle); ok && handler != nil {
+		handler(msg)
+	}
 }
 
 // GetBroadcasts is called when user data messages can be broadcast.

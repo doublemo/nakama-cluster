@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package nakama.cluster.api;
+
+option go_package = "github.com/doublemo/nakama-cluster/pb";
+
+message Notify {
+    uint64 Id = 1;
+    oneof Payload {
+        string Online = 2;
+        string Offline = 3;
+        NakamaEnvelope Nakama = 4;
+    }
+}
+
+message NakamaEnvelope {
+    bytes Message = 1;
+}
