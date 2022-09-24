@@ -43,3 +43,15 @@ func (n *Node) ToService(prefix string) sd.Service {
 		Value: string(data),
 	}
 }
+
+func (n *Node) Clone() *Node {
+	return &Node{
+		Id:       n.Id,
+		Name:     n.Name,
+		Rpc:      n.Rpc,
+		Weight:   n.Weight,
+		Region:   n.Region,
+		NodeType: n.NodeType,
+		Addr:     n.Addr,
+	}
+}

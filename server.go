@@ -33,6 +33,7 @@ type Server struct {
 	memberlist  *memberlist.Memberlist
 	localNode   *Node
 	nakamaPeers *Peer
+	snowflake   *snowflake
 	microPeers  atomic.Value
 	msgQueue    *memberlist.TransmitLimitedQueue
 	msgChan     chan Broadcast
@@ -42,6 +43,14 @@ type Server struct {
 	logger *zap.Logger
 	once   sync.Once
 	sync.RWMutex
+}
+
+func (s *Server) NextMessageId() (uint64, error) {
+	return s.snowflake.NextId()
+}
+
+func (s *Server) Node() *Node {
+	return s.localNode.Clone()
 }
 
 func (s *Server) OnNotifyMsg(f NotifyMsgHandle) {
@@ -164,6 +173,7 @@ func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node N
 		nakamaPeers: NewPeer(),
 		localNode:   &node,
 		msgChan:     make(chan Broadcast, 128),
+		snowflake:   newSnowflake(node.Id),
 	}
 
 	s.microPeers.Store(make(map[string]*Peer))

@@ -9,6 +9,7 @@ package pb
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 	reflect "reflect"
 	sync "sync"
 )
@@ -20,23 +21,61 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// 接口
+type Api struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *Api) Reset() {
+	*x = Api{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_cluster_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Api) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Api) ProtoMessage() {}
+
+func (x *Api) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_proto_msgTypes[0]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Api.ProtoReflect.Descriptor instead.
+func (*Api) Descriptor() ([]byte, []int) {
+	return file_cluster_proto_rawDescGZIP(), []int{0}
+}
+
 type Notify struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id uint64 `protobuf:"varint,1,opt,name=Id,proto3" json:"Id,omitempty"`
+	Id   uint64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Node string `protobuf:"bytes,2,opt,name=node,proto3" json:"node,omitempty"`
 	// Types that are assignable to Payload:
-	//	*Notify_Online
-	//	*Notify_Offline
-	//	*Notify_Nakama
-	Payload isNotify_Payload `protobuf_oneof:"Payload"`
+	//	*Notify_Message
+	Payload isNotify_Payload `protobuf_oneof:"payload"`
 }
 
 func (x *Notify) Reset() {
 	*x = Notify{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_cluster_proto_msgTypes[0]
+		mi := &file_cluster_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -49,7 +88,7 @@ func (x *Notify) String() string {
 func (*Notify) ProtoMessage() {}
 
 func (x *Notify) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_proto_msgTypes[0]
+	mi := &file_cluster_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62,7 +101,7 @@ func (x *Notify) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Notify.ProtoReflect.Descriptor instead.
 func (*Notify) Descriptor() ([]byte, []int) {
-	return file_cluster_proto_rawDescGZIP(), []int{0}
+	return file_cluster_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Notify) GetId() uint64 {
@@ -72,6 +111,13 @@ func (x *Notify) GetId() uint64 {
 	return 0
 }
 
+func (x *Notify) GetNode() string {
+	if x != nil {
+		return x.Node
+	}
+	return ""
+}
+
 func (m *Notify) GetPayload() isNotify_Payload {
 	if m != nil {
 		return m.Payload
@@ -79,23 +125,9 @@ func (m *Notify) GetPayload() isNotify_Payload {
 	return nil
 }
 
-func (x *Notify) GetOnline() string {
-	if x, ok := x.GetPayload().(*Notify_Online); ok {
-		return x.Online
-	}
-	return ""
-}
-
-func (x *Notify) GetOffline() string {
-	if x, ok := x.GetPayload().(*Notify_Offline); ok {
-		return x.Offline
-	}
-	return ""
-}
-
-func (x *Notify) GetNakama() *NakamaEnvelope {
-	if x, ok := x.GetPayload().(*Notify_Nakama); ok {
-		return x.Nakama
+func (x *Notify) GetMessage() *Nakama_Message {
+	if x, ok := x.GetPayload().(*Notify_Message); ok {
+		return x.Message
 	}
 	return nil
 }
@@ -104,49 +136,36 @@ type isNotify_Payload interface {
 	isNotify_Payload()
 }
 
-type Notify_Online struct {
-	Online string `protobuf:"bytes,2,opt,name=Online,proto3,oneof"`
+type Notify_Message struct {
+	Message *Nakama_Message `protobuf:"bytes,3,opt,name=message,proto3,oneof"`
 }
 
-type Notify_Offline struct {
-	Offline string `protobuf:"bytes,3,opt,name=Offline,proto3,oneof"`
-}
+func (*Notify_Message) isNotify_Payload() {}
 
-type Notify_Nakama struct {
-	Nakama *NakamaEnvelope `protobuf:"bytes,4,opt,name=Nakama,proto3,oneof"`
-}
-
-func (*Notify_Online) isNotify_Payload() {}
-
-func (*Notify_Offline) isNotify_Payload() {}
-
-func (*Notify_Nakama) isNotify_Payload() {}
-
-type NakamaEnvelope struct {
+// nakama message
+type Nakama struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
-
-	Message []byte `protobuf:"bytes,1,opt,name=Message,proto3" json:"Message,omitempty"`
 }
 
-func (x *NakamaEnvelope) Reset() {
-	*x = NakamaEnvelope{}
+func (x *Nakama) Reset() {
+	*x = Nakama{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_cluster_proto_msgTypes[1]
+		mi := &file_cluster_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *NakamaEnvelope) String() string {
+func (x *Nakama) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*NakamaEnvelope) ProtoMessage() {}
+func (*Nakama) ProtoMessage() {}
 
-func (x *NakamaEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_cluster_proto_msgTypes[1]
+func (x *Nakama) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -157,14 +176,389 @@ func (x *NakamaEnvelope) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NakamaEnvelope.ProtoReflect.Descriptor instead.
-func (*NakamaEnvelope) Descriptor() ([]byte, []int) {
-	return file_cluster_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use Nakama.ProtoReflect.Descriptor instead.
+func (*Nakama) Descriptor() ([]byte, []int) {
+	return file_cluster_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *NakamaEnvelope) GetMessage() []byte {
+// error
+type Error struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The error code which should be one of "Error.Code" enums.
+	Code int32 `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	// A message in English to help developers debug the response.
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	// Additional error details which may be different for each response.
+	Context map[string]string `protobuf:"bytes,3,rep,name=context,proto3" json:"context,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *Error) Reset() {
+	*x = Error{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_cluster_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Error) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Error) ProtoMessage() {}
+
+func (x *Error) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Error.ProtoReflect.Descriptor instead.
+func (*Error) Descriptor() ([]byte, []int) {
+	return file_cluster_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Error) GetCode() int32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *Error) GetMessage() string {
 	if x != nil {
 		return x.Message
+	}
+	return ""
+}
+
+func (x *Error) GetContext() map[string]string {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+type Api_Envelope struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Cid string `protobuf:"bytes,1,opt,name=cid,proto3" json:"cid,omitempty"`
+	// Types that are assignable to Payload:
+	//	*Api_Envelope_Body
+	//	*Api_Envelope_Error
+	Payload isApi_Envelope_Payload `protobuf_oneof:"payload"`
+}
+
+func (x *Api_Envelope) Reset() {
+	*x = Api_Envelope{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_cluster_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Api_Envelope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Api_Envelope) ProtoMessage() {}
+
+func (x *Api_Envelope) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Api_Envelope.ProtoReflect.Descriptor instead.
+func (*Api_Envelope) Descriptor() ([]byte, []int) {
+	return file_cluster_proto_rawDescGZIP(), []int{0, 0}
+}
+
+func (x *Api_Envelope) GetCid() string {
+	if x != nil {
+		return x.Cid
+	}
+	return ""
+}
+
+func (m *Api_Envelope) GetPayload() isApi_Envelope_Payload {
+	if m != nil {
+		return m.Payload
+	}
+	return nil
+}
+
+func (x *Api_Envelope) GetBody() *Api_Body {
+	if x, ok := x.GetPayload().(*Api_Envelope_Body); ok {
+		return x.Body
+	}
+	return nil
+}
+
+func (x *Api_Envelope) GetError() *Error {
+	if x, ok := x.GetPayload().(*Api_Envelope_Error); ok {
+		return x.Error
+	}
+	return nil
+}
+
+type isApi_Envelope_Payload interface {
+	isApi_Envelope_Payload()
+}
+
+type Api_Envelope_Body struct {
+	Body *Api_Body `protobuf:"bytes,2,opt,name=body,proto3,oneof"`
+}
+
+type Api_Envelope_Error struct {
+	Error *Error `protobuf:"bytes,3,opt,name=error,proto3,oneof"`
+}
+
+func (*Api_Envelope_Body) isApi_Envelope_Payload() {}
+
+func (*Api_Envelope_Error) isApi_Envelope_Payload() {}
+
+type Api_Body struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Content []byte `protobuf:"bytes,1,opt,name=Content,proto3" json:"Content,omitempty"`
+}
+
+func (x *Api_Body) Reset() {
+	*x = Api_Body{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_cluster_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Api_Body) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Api_Body) ProtoMessage() {}
+
+func (x *Api_Body) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Api_Body.ProtoReflect.Descriptor instead.
+func (*Api_Body) Descriptor() ([]byte, []int) {
+	return file_cluster_proto_rawDescGZIP(), []int{0, 1}
+}
+
+func (x *Api_Body) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+type Nakama_Message struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Body []byte `protobuf:"bytes,1,opt,name=body,proto3" json:"body,omitempty"`
+}
+
+func (x *Nakama_Message) Reset() {
+	*x = Nakama_Message{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_cluster_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Nakama_Message) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Nakama_Message) ProtoMessage() {}
+
+func (x *Nakama_Message) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Nakama_Message.ProtoReflect.Descriptor instead.
+func (*Nakama_Message) Descriptor() ([]byte, []int) {
+	return file_cluster_proto_rawDescGZIP(), []int{2, 0}
+}
+
+func (x *Nakama_Message) GetBody() []byte {
+	if x != nil {
+		return x.Body
+	}
+	return nil
+}
+
+type Nakama_Status struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// User statuses.
+	Presences []*Nakama_UserPresence `protobuf:"bytes,1,rep,name=presences,proto3" json:"presences,omitempty"`
+}
+
+func (x *Nakama_Status) Reset() {
+	*x = Nakama_Status{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_cluster_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Nakama_Status) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Nakama_Status) ProtoMessage() {}
+
+func (x *Nakama_Status) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Nakama_Status.ProtoReflect.Descriptor instead.
+func (*Nakama_Status) Descriptor() ([]byte, []int) {
+	return file_cluster_proto_rawDescGZIP(), []int{2, 1}
+}
+
+func (x *Nakama_Status) GetPresences() []*Nakama_UserPresence {
+	if x != nil {
+		return x.Presences
+	}
+	return nil
+}
+
+// A user session associated to a stream, usually through a list operation or a join/leave event.
+type Nakama_UserPresence struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The user this presence belongs to.
+	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// A unique session ID identifying the particular connection, because the user may have many.
+	SessionId string `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// The username for display purposes.
+	Username string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	// Whether this presence generates persistent data/messages, if applicable for the stream type.
+	Persistence bool `protobuf:"varint,4,opt,name=persistence,proto3" json:"persistence,omitempty"`
+	// A user-set status message for this stream, if applicable.
+	Status *wrapperspb.StringValue `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
+}
+
+func (x *Nakama_UserPresence) Reset() {
+	*x = Nakama_UserPresence{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_cluster_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Nakama_UserPresence) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Nakama_UserPresence) ProtoMessage() {}
+
+func (x *Nakama_UserPresence) ProtoReflect() protoreflect.Message {
+	mi := &file_cluster_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Nakama_UserPresence.ProtoReflect.Descriptor instead.
+func (*Nakama_UserPresence) Descriptor() ([]byte, []int) {
+	return file_cluster_proto_rawDescGZIP(), []int{2, 2}
+}
+
+func (x *Nakama_UserPresence) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *Nakama_UserPresence) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *Nakama_UserPresence) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *Nakama_UserPresence) GetPersistence() bool {
+	if x != nil {
+		return x.Persistence
+	}
+	return false
+}
+
+func (x *Nakama_UserPresence) GetStatus() *wrapperspb.StringValue {
+	if x != nil {
+		return x.Status
 	}
 	return nil
 }
@@ -174,22 +568,68 @@ var File_cluster_proto protoreflect.FileDescriptor
 var file_cluster_proto_rawDesc = []byte{
 	0x0a, 0x0d, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12,
 	0x12, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e,
-	0x61, 0x70, 0x69, 0x22, 0x97, 0x01, 0x0a, 0x06, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x12, 0x0e,
-	0x0a, 0x02, 0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x02, 0x49, 0x64, 0x12, 0x18,
-	0x0a, 0x06, 0x4f, 0x6e, 0x6c, 0x69, 0x6e, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00,
-	0x52, 0x06, 0x4f, 0x6e, 0x6c, 0x69, 0x6e, 0x65, 0x12, 0x1a, 0x0a, 0x07, 0x4f, 0x66, 0x66, 0x6c,
-	0x69, 0x6e, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x07, 0x4f, 0x66, 0x66,
-	0x6c, 0x69, 0x6e, 0x65, 0x12, 0x3c, 0x0a, 0x06, 0x4e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x18, 0x04,
-	0x20, 0x01, 0x28, 0x0b, 0x32, 0x22, 0x2e, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c,
-	0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x4e, 0x61, 0x6b, 0x61, 0x6d, 0x61,
-	0x45, 0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x48, 0x00, 0x52, 0x06, 0x4e, 0x61, 0x6b, 0x61,
-	0x6d, 0x61, 0x42, 0x09, 0x0a, 0x07, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x22, 0x2a, 0x0a,
-	0x0e, 0x4e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x45, 0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x12,
-	0x18, 0x0a, 0x07, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c,
-	0x52, 0x07, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x42, 0x27, 0x5a, 0x25, 0x67, 0x69, 0x74,
-	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x64, 0x6f, 0x75, 0x62, 0x6c, 0x65, 0x6d, 0x6f,
-	0x2f, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2d, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2f,
-	0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x61, 0x70, 0x69, 0x1a, 0x1e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x62, 0x75, 0x66, 0x2f, 0x77, 0x72, 0x61, 0x70, 0x70, 0x65, 0x72, 0x73, 0x2e, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x22, 0xb8, 0x01, 0x0a, 0x03, 0x41, 0x70, 0x69, 0x1a, 0x8e, 0x01, 0x0a, 0x08,
+	0x45, 0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x63, 0x69, 0x64, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x63, 0x69, 0x64, 0x12, 0x32, 0x0a, 0x04, 0x62, 0x6f,
+	0x64, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x6e, 0x61, 0x6b, 0x61, 0x6d,
+	0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x41, 0x70,
+	0x69, 0x2e, 0x42, 0x6f, 0x64, 0x79, 0x48, 0x00, 0x52, 0x04, 0x62, 0x6f, 0x64, 0x79, 0x12, 0x31,
+	0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e,
+	0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x48, 0x00, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f,
+	0x72, 0x42, 0x09, 0x0a, 0x07, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x1a, 0x20, 0x0a, 0x04,
+	0x42, 0x6f, 0x64, 0x79, 0x12, 0x18, 0x0a, 0x07, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x07, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x22, 0x77,
+	0x0a, 0x06, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x04, 0x52, 0x02, 0x69, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x6f, 0x64, 0x65,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x12, 0x3e, 0x0a, 0x07,
+	0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x22, 0x2e,
+	0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x4e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67,
+	0x65, 0x48, 0x00, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x42, 0x09, 0x0a, 0x07,
+	0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x22, 0xb5, 0x02, 0x0a, 0x06, 0x4e, 0x61, 0x6b, 0x61,
+	0x6d, 0x61, 0x1a, 0x1d, 0x0a, 0x07, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12, 0x12, 0x0a,
+	0x04, 0x62, 0x6f, 0x64, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x62, 0x6f, 0x64,
+	0x79, 0x1a, 0x4f, 0x0a, 0x06, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x45, 0x0a, 0x09, 0x70,
+	0x72, 0x65, 0x73, 0x65, 0x6e, 0x63, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x27,
+	0x2e, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e,
+	0x61, 0x70, 0x69, 0x2e, 0x4e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x55, 0x73, 0x65, 0x72, 0x50,
+	0x72, 0x65, 0x73, 0x65, 0x6e, 0x63, 0x65, 0x52, 0x09, 0x70, 0x72, 0x65, 0x73, 0x65, 0x6e, 0x63,
+	0x65, 0x73, 0x1a, 0xba, 0x01, 0x0a, 0x0c, 0x55, 0x73, 0x65, 0x72, 0x50, 0x72, 0x65, 0x73, 0x65,
+	0x6e, 0x63, 0x65, 0x12, 0x17, 0x0a, 0x07, 0x75, 0x73, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x75, 0x73, 0x65, 0x72, 0x49, 0x64, 0x12, 0x1d, 0x0a, 0x0a,
+	0x73, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x09, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x49, 0x64, 0x12, 0x1a, 0x0a, 0x08, 0x75,
+	0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x75,
+	0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x20, 0x0a, 0x0b, 0x70, 0x65, 0x72, 0x73, 0x69,
+	0x73, 0x74, 0x65, 0x6e, 0x63, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0b, 0x70, 0x65,
+	0x72, 0x73, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x63, 0x65, 0x12, 0x34, 0x0a, 0x06, 0x73, 0x74, 0x61,
+	0x74, 0x75, 0x73, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x67, 0x6f, 0x6f, 0x67,
+	0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x53, 0x74, 0x72, 0x69,
+	0x6e, 0x67, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22,
+	0xb3, 0x01, 0x0a, 0x05, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x12, 0x12, 0x0a, 0x04, 0x63, 0x6f, 0x64,
+	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x04, 0x63, 0x6f, 0x64, 0x65, 0x12, 0x18, 0x0a,
+	0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07,
+	0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12, 0x40, 0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65,
+	0x78, 0x74, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x26, 0x2e, 0x6e, 0x61, 0x6b, 0x61, 0x6d,
+	0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x45, 0x72,
+	0x72, 0x6f, 0x72, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x45, 0x6e, 0x74, 0x72, 0x79,
+	0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x1a, 0x3a, 0x0a, 0x0c, 0x43, 0x6f, 0x6e,
+	0x74, 0x65, 0x78, 0x74, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76,
+	0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75,
+	0x65, 0x3a, 0x02, 0x38, 0x01, 0x32, 0x59, 0x0a, 0x09, 0x41, 0x70, 0x69, 0x53, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x12, 0x4c, 0x0a, 0x04, 0x43, 0x61, 0x6c, 0x6c, 0x12, 0x20, 0x2e, 0x6e, 0x61, 0x6b,
+	0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x41, 0x70, 0x69, 0x2e, 0x45, 0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x1a, 0x20, 0x2e, 0x6e,
+	0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x41, 0x70, 0x69, 0x2e, 0x45, 0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x22, 0x00,
+	0x42, 0x27, 0x5a, 0x25, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x64,
+	0x6f, 0x75, 0x62, 0x6c, 0x65, 0x6d, 0x6f, 0x2f, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2d, 0x63,
+	0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -204,18 +644,34 @@ func file_cluster_proto_rawDescGZIP() []byte {
 	return file_cluster_proto_rawDescData
 }
 
-var file_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_cluster_proto_goTypes = []interface{}{
-	(*Notify)(nil),         // 0: nakama.cluster.api.Notify
-	(*NakamaEnvelope)(nil), // 1: nakama.cluster.api.NakamaEnvelope
+	(*Api)(nil),                    // 0: nakama.cluster.api.Api
+	(*Notify)(nil),                 // 1: nakama.cluster.api.Notify
+	(*Nakama)(nil),                 // 2: nakama.cluster.api.Nakama
+	(*Error)(nil),                  // 3: nakama.cluster.api.Error
+	(*Api_Envelope)(nil),           // 4: nakama.cluster.api.Api.Envelope
+	(*Api_Body)(nil),               // 5: nakama.cluster.api.Api.Body
+	(*Nakama_Message)(nil),         // 6: nakama.cluster.api.Nakama.Message
+	(*Nakama_Status)(nil),          // 7: nakama.cluster.api.Nakama.Status
+	(*Nakama_UserPresence)(nil),    // 8: nakama.cluster.api.Nakama.UserPresence
+	nil,                            // 9: nakama.cluster.api.Error.ContextEntry
+	(*wrapperspb.StringValue)(nil), // 10: google.protobuf.StringValue
 }
 var file_cluster_proto_depIdxs = []int32{
-	1, // 0: nakama.cluster.api.Notify.Nakama:type_name -> nakama.cluster.api.NakamaEnvelope
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	6,  // 0: nakama.cluster.api.Notify.message:type_name -> nakama.cluster.api.Nakama.Message
+	9,  // 1: nakama.cluster.api.Error.context:type_name -> nakama.cluster.api.Error.ContextEntry
+	5,  // 2: nakama.cluster.api.Api.Envelope.body:type_name -> nakama.cluster.api.Api.Body
+	3,  // 3: nakama.cluster.api.Api.Envelope.error:type_name -> nakama.cluster.api.Error
+	8,  // 4: nakama.cluster.api.Nakama.Status.presences:type_name -> nakama.cluster.api.Nakama.UserPresence
+	10, // 5: nakama.cluster.api.Nakama.UserPresence.status:type_name -> google.protobuf.StringValue
+	4,  // 6: nakama.cluster.api.ApiServer.Call:input_type -> nakama.cluster.api.Api.Envelope
+	4,  // 7: nakama.cluster.api.ApiServer.Call:output_type -> nakama.cluster.api.Api.Envelope
+	7,  // [7:8] is the sub-list for method output_type
+	6,  // [6:7] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_cluster_proto_init() }
@@ -225,7 +681,7 @@ func file_cluster_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_cluster_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Notify); i {
+			switch v := v.(*Api); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -237,7 +693,91 @@ func file_cluster_proto_init() {
 			}
 		}
 		file_cluster_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NakamaEnvelope); i {
+			switch v := v.(*Notify); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_cluster_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Nakama); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_cluster_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Error); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_cluster_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Api_Envelope); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_cluster_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Api_Body); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_cluster_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Nakama_Message); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_cluster_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Nakama_Status); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_cluster_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Nakama_UserPresence); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -249,10 +789,12 @@ func file_cluster_proto_init() {
 			}
 		}
 	}
-	file_cluster_proto_msgTypes[0].OneofWrappers = []interface{}{
-		(*Notify_Online)(nil),
-		(*Notify_Offline)(nil),
-		(*Notify_Nakama)(nil),
+	file_cluster_proto_msgTypes[1].OneofWrappers = []interface{}{
+		(*Notify_Message)(nil),
+	}
+	file_cluster_proto_msgTypes[4].OneofWrappers = []interface{}{
+		(*Api_Envelope_Body)(nil),
+		(*Api_Envelope_Error)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -260,9 +802,9 @@ func file_cluster_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_cluster_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   10,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_cluster_proto_goTypes,
 		DependencyIndexes: file_cluster_proto_depIdxs,

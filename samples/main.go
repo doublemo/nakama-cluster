@@ -13,7 +13,6 @@ import (
 	nakamacluster "github.com/doublemo/nakama-cluster"
 	"github.com/doublemo/nakama-cluster/pb"
 	"github.com/doublemo/nakama-cluster/sd"
-	"github.com/golang/protobuf/proto"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -42,9 +41,9 @@ func main() {
 	}
 
 	c := nakamacluster.NewConfig()
-	c.Port = 7356
+	c.Port = 7355
 	node := nakamacluster.Node{
-		Id:       "node-2",
+		Id:       "node-1",
 		Name:     "nakama",
 		Rpc:      "127.0.0.1:7953",
 		Weight:   1,
@@ -63,17 +62,21 @@ func main() {
 			case <-t.C:
 				data := make([]byte, 32)
 				binary.BigEndian.PutUint32(data, rand.Uint32())
-				msg := nakamacluster.NewBroadcast(&pb.Notify{Id: rand.Uint64(), Payload: &pb.Notify_Online{Online: "ddsdafsdfsd"}})
+				id, err := s.NextMessageId()
+				if err != nil {
+					log.Error("获取ID失败", zap.Error(err))
+					return
+				}
+
+				msg := nakamacluster.NewBroadcast(&pb.Notify{Id: id, Node: s.Node().Id, Payload: &pb.Notify_Message{Message: &pb.Nakama_Message{Body: []byte{0x1}}}})
 				s.Broadcast(*msg)
 			case <-ctx.Done():
 			}
 		}
 	}()
 
-	s.OnNotifyMsg(func(msg []byte) {
-		data := pb.Notify{}
-		proto.Unmarshal(msg, &data)
-		fmt.Println("---------------d-----", data.Id)
+	s.OnNotifyMsg(func(msg *pb.Notify) {
+		log.Debug("收到广播信息", zap.Uint64("id", msg.Id), zap.String("node", msg.Node))
 	})
 
 	sign := make(chan os.Signal, 1)

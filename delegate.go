@@ -1,14 +1,20 @@
 package nakamacluster
 
 import (
+	"sync"
+
+	"github.com/doublemo/nakama-cluster/pb"
+	"github.com/golang/protobuf/proto"
 	"go.uber.org/zap"
 )
 
-type NotifyMsgHandle func(msg []byte)
+type NotifyMsgHandle func(*pb.Notify)
 
 type Delegate struct {
-	logger *zap.Logger
-	server *Server
+	logger     *zap.Logger
+	server     *Server
+	messageCur map[string]uint64
+	mutex      sync.RWMutex
 }
 
 // NodeMeta is used to retrieve meta-data about the current node
@@ -23,9 +29,29 @@ func (s *Delegate) NodeMeta(limit int) []byte {
 // so would block the entire UDP packet receive loop. Additionally, the byte
 // slice may be modified after the call returns, so it should be copied if needed
 func (s *Delegate) NotifyMsg(msg []byte) {
-	if handler, ok := s.server.onNotifyMsg.Load().(NotifyMsgHandle); ok && handler != nil {
-		handler(msg)
+	handler, ok := s.server.onNotifyMsg.Load().(NotifyMsgHandle)
+	if !ok || handler == nil {
+		return
 	}
+
+	var notify pb.Notify
+	if err := proto.Unmarshal(msg, &notify); err != nil {
+		s.logger.Warn("NotifyMsg parse failed", zap.Error(err))
+		return
+	}
+
+	s.mutex.RLock()
+	lastId := s.messageCur[notify.Node]
+	s.mutex.RUnlock()
+
+	if notify.Id <= lastId {
+		return
+	}
+
+	s.mutex.Lock()
+	s.messageCur[notify.Node] = notify.Id
+	s.mutex.Unlock()
+	handler(&notify)
 }
 
 // GetBroadcasts is called when user data messages can be broadcast.
@@ -55,7 +81,8 @@ func (s *Delegate) MergeRemoteState(buf []byte, join bool) {
 
 func newDelegate(logger *zap.Logger, s *Server) *Delegate {
 	return &Delegate{
-		logger: logger,
-		server: s,
+		logger:     logger,
+		server:     s,
+		messageCur: make(map[string]uint64),
 	}
 }

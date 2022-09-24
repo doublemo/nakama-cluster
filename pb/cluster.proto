@@ -2,17 +2,70 @@ syntax = "proto3";
 
 package nakama.cluster.api;
 
+import "google/protobuf/wrappers.proto";
 option go_package = "github.com/doublemo/nakama-cluster/pb";
 
-message Notify {
-    uint64 Id = 1;
-    oneof Payload {
-        string Online = 2;
-        string Offline = 3;
-        NakamaEnvelope Nakama = 4;
+// 微服务接口
+service ApiServer{
+    rpc Call(Api.Envelope) returns(Api.Envelope) {}
+}
+
+// 接口
+message Api {
+    message Envelope {
+        string cid = 1;
+        oneof payload {
+            Body body   = 2;
+            Error error = 3;
+        }
+    }
+
+    message Body {
+        bytes Content = 1;
     }
 }
 
-message NakamaEnvelope {
-    bytes Message = 1;
+message Notify {
+    uint64 id = 1;
+    string node = 2;
+    oneof payload {
+        Nakama.Message message = 3;
+    }
+}
+
+// nakama message
+message Nakama {
+    message Message {
+        bytes body = 1;
+    }
+
+    message Status {
+        // User statuses.
+       repeated UserPresence presences = 1;
+    }
+
+    // A user session associated to a stream, usually through a list operation or a join/leave event.
+    message UserPresence {
+        // The user this presence belongs to.
+        string user_id = 1;
+        // A unique session ID identifying the particular connection, because the user may have many.
+        string session_id = 2;
+        // The username for display purposes.
+        string username = 3;
+        // Whether this presence generates persistent data/messages, if applicable for the stream type.
+        bool persistence = 4;
+        // A user-set status message for this stream, if applicable.
+        google.protobuf.StringValue status = 5;
+    }
+}
+
+
+// error
+message Error {
+    // The error code which should be one of "Error.Code" enums.
+    int32 code = 1;
+    // A message in English to help developers debug the response.
+    string message = 2;
+    // Additional error details which may be different for each response.
+    map<string, string> context = 3;
 }
