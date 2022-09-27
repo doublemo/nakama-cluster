@@ -2,11 +2,9 @@ package nakamacluster
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"github.com/uber-go/tally/v4"
-	"github.com/uber-go/tally/v4/prometheus"
 	"go.uber.org/atomic"
 )
 
@@ -20,25 +18,46 @@ type Metrics struct {
 	currentRecvCount *atomic.Int64
 	currentRecvBytes *atomic.Int64
 	currentSentBytes *atomic.Int64
-	PrometheusScope  tally.Scope
-	prometheusCloser io.Closer
+	scope            tally.Scope
+}
+
+func (m *Metrics) SnapshotRateSec() float64 {
+	return m.snapshotRateSec.Load()
+}
+
+func (m *Metrics) SnapshotRecvKbSec() float64 {
+	return m.snapshotRecvKbSec.Load()
+}
+
+func (m *Metrics) SnapshotSentKbSec() float64 {
+	return m.snapshotSentKbSec.Load()
+}
+
+func (m *Metrics) NodeJoin() {
+	m.scope.Counter("node_count").Inc(1)
+}
+
+func (m *Metrics) NodeLeave() {
+	m.scope.Counter("node_count").Inc(-1)
 }
 
 func (m *Metrics) RecvBroadcast(recvBytes int64) {
-	m.currentReqCount.Inc()
+	m.currentRecvCount.Inc()
 	m.currentRecvBytes.Add(recvBytes)
+	m.scope.Counter("overall_recv_bytes").Inc(recvBytes)
 }
 
 func (m *Metrics) SentBroadcast(sentBytes int64) {
-	m.currentRecvCount.Inc()
+	m.currentReqCount.Inc()
 	m.currentSentBytes.Add(sentBytes)
+	m.scope.Counter("overall_sent_bytes").Inc(sentBytes)
 }
 
 func (m *Metrics) PingMs(elapsed time.Duration) {
-	m.PrometheusScope.Timer("overall_ping_ms").Record(elapsed)
+	m.scope.Timer("overall_ping_ms").Record(elapsed)
 }
 
-func newMetrics(reporter prometheus.Reporter) *Metrics {
+func newMetrics(scope tally.Scope) *Metrics {
 	ctx, cancelFn := context.WithCancel(context.Background())
 	m := &Metrics{
 		cancelFn:          cancelFn,
@@ -50,6 +69,7 @@ func newMetrics(reporter prometheus.Reporter) *Metrics {
 		currentReqCount:  atomic.NewInt64(0),
 		currentRecvBytes: atomic.NewInt64(0),
 		currentSentBytes: atomic.NewInt64(0),
+		scope:            scope,
 	}
 
 	go func() {
@@ -71,15 +91,5 @@ func newMetrics(reporter prometheus.Reporter) *Metrics {
 		}
 	}()
 
-	tags := map[string]string{"node_name": "dd"}
-	tags["namespace"] = "namespace"
-	m.PrometheusScope, m.prometheusCloser = tally.NewRootScope(tally.ScopeOptions{
-		Prefix:          "",
-		Tags:            tags,
-		CachedReporter:  reporter,
-		Separator:       prometheus.DefaultSeparator,
-		SanitizeOptions: &prometheus.DefaultSanitizerOpts,
-	}, time.Duration(60)*time.Second)
-	// ReportingFreqSec
 	return m
 }

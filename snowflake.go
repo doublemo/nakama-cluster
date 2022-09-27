@@ -76,7 +76,7 @@ func (s *snowflake) NextId() (uint64, error) {
 	s.RUnlock()
 
 	if currentSecond < lastSecond {
-		return 0, fmt.Errorf("Timestamp bits is exhausted. Refusing UID generate. Now: %d", lastSecond-currentSecond)
+		return 0, fmt.Errorf("timestamp bits is exhausted. Refusing UID generate. Now: %d", lastSecond-currentSecond)
 	}
 
 	if currentSecond == lastSecond {
@@ -108,7 +108,7 @@ func (s *snowflake) getCurrentSecond() (uint64, error) {
 
 	currentSecond := uint64(time.Now().Unix())
 	if currentSecond-epochSeconds > maxDeltaSeconds {
-		return 0, fmt.Errorf("Timestamp bits is exhausted. Refusing UID generate. Now: %d %d", currentSecond, maxDeltaSeconds)
+		return 0, fmt.Errorf("timestamp bits is exhausted. Refusing UID generate. Now: %d %d", currentSecond, maxDeltaSeconds)
 	}
 
 	return currentSecond, nil
@@ -149,7 +149,6 @@ func (s *snowflake) Parse(id uint64) string {
 
 func newSnowflake(nodeId string) *snowflake {
 	workerId := crc32.ChecksumIEEE([]byte(nodeId))
-	workerId = workerId % 1000
 	maxDeltaSeconds := ^(-1 << defaultTimeBits)
 	maxWorkerId := ^(-1 << defaultWorkerBits)
 	maxSequence := ^(-1 << defaultSeqBits)
@@ -157,7 +156,7 @@ func newSnowflake(nodeId string) *snowflake {
 		timeBits:        defaultTimeBits,
 		workerBits:      defaultWorkerBits,
 		seqBits:         defaultSeqBits,
-		epochStr:        "2022-09-24",
+		epochStr:        "2022-09-27",
 		workerId:        uint64(workerId),
 		maxDeltaSeconds: uint64(maxDeltaSeconds),
 		maxWorkerId:     uint64(maxWorkerId),

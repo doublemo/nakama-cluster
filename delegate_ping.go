@@ -14,5 +14,9 @@ func (s *Delegate) AckPayload() []byte {
 
 // NotifyPing is invoked when an ack for a ping is received
 func (s *Delegate) NotifyPingComplete(other *memberlist.Node, rtt time.Duration, payload []byte) {
+	if s.server.metrics != nil {
+		s.server.metrics.PingMs(rtt)
+	}
+
 	s.logger.Debug("NotifyPingComplete", zap.Any("node", other.Name), zap.String("rtt", rtt.String()), zap.Binary("payload", payload))
 }

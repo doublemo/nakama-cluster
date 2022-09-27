@@ -29,6 +29,11 @@ func (s *Delegate) NodeMeta(limit int) []byte {
 // so would block the entire UDP packet receive loop. Additionally, the byte
 // slice may be modified after the call returns, so it should be copied if needed
 func (s *Delegate) NotifyMsg(msg []byte) {
+
+	if s.server.metrics != nil {
+		s.server.metrics.RecvBroadcast(int64(len(msg)))
+	}
+
 	handler, ok := s.server.onNotifyMsg.Load().(NotifyMsgHandle)
 	if !ok || handler == nil {
 		return

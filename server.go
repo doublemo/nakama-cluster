@@ -8,6 +8,7 @@ import (
 
 	"github.com/doublemo/nakama-cluster/sd"
 	"github.com/hashicorp/memberlist"
+	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
 )
 
@@ -38,6 +39,7 @@ type Server struct {
 	msgQueue    *memberlist.TransmitLimitedQueue
 	msgChan     chan Broadcast
 	onNotifyMsg atomic.Value
+	metrics     *Metrics
 	config      Config
 
 	logger *zap.Logger
@@ -55,6 +57,10 @@ func (s *Server) Node() *Node {
 
 func (s *Server) OnNotifyMsg(f NotifyMsgHandle) {
 	s.onNotifyMsg.Store(f)
+}
+
+func (s *Server) Metrics() *Metrics {
+	return s.metrics
 }
 
 func (s *Server) Broadcast(msg Broadcast) bool {
@@ -89,6 +95,10 @@ func (s *Server) serve() {
 		case msg, ok := <-s.msgChan:
 			if !ok {
 				return
+			}
+
+			if s.metrics != nil {
+				s.metrics.SentBroadcast(int64(len(msg.Message())))
 			}
 			s.msgQueue.QueueBroadcast(&msg)
 
@@ -162,7 +172,7 @@ func (s *Server) nodes() ([]*Node, error) {
 	return nodes, nil
 }
 
-func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node Node, c Config) *Server {
+func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node Node, metrics tally.Scope, c Config) *Server {
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
 		ctx:         ctx,
@@ -174,6 +184,11 @@ func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node N
 		localNode:   &node,
 		msgChan:     make(chan Broadcast, 128),
 		snowflake:   newSnowflake(node.Id),
+	}
+
+	// metrics
+	if metrics != nil {
+		s.metrics = newMetrics(metrics)
 	}
 
 	s.microPeers.Store(make(map[string]*Peer))

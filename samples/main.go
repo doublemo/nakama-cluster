@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +14,8 @@ import (
 	nakamacluster "github.com/doublemo/nakama-cluster"
 	"github.com/doublemo/nakama-cluster/pb"
 	"github.com/doublemo/nakama-cluster/sd"
+	"github.com/uber-go/tally/v4"
+	"github.com/uber-go/tally/v4/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -52,7 +55,22 @@ func main() {
 		Addr:     fmt.Sprintf("%s:%d", "127.0.0.1", c.Port),
 	}
 
-	s := nakamacluster.NewServer(ctx, log, client, node, *c)
+	// Create Prometheus reporter and root scope.
+	reporter := prometheus.NewReporter(prometheus.Options{
+		OnRegisterError: func(err error) {
+			log.Error("Error registering Prometheus metric", zap.Error(err))
+		},
+	})
+	tags := map[string]string{"node_name": node.Id}
+	scope, scopeCloser := tally.NewRootScope(tally.ScopeOptions{
+		Prefix:          "/testv",
+		Tags:            tags,
+		CachedReporter:  reporter,
+		Separator:       prometheus.DefaultSeparator,
+		SanitizeOptions: &prometheus.DefaultSanitizerOpts,
+	}, time.Duration(5)*time.Second)
+
+	s := nakamacluster.NewServer(ctx, log, client, node, scope, *c)
 	log.Info("服务启动成功", zap.String("addr", c.Addr), zap.Int("port", c.Port))
 	go func() {
 		t := time.NewTicker(time.Second * 10)
@@ -75,6 +93,21 @@ func main() {
 		}
 	}()
 
+	hs := &http.Server{
+		Addr:         ":1745",
+		ReadTimeout:  time.Millisecond * 10000,
+		WriteTimeout: time.Millisecond * 10000,
+		IdleTimeout:  time.Millisecond * 60000,
+		Handler:      reporter.HTTPHandler(),
+	}
+
+	go func() {
+		log.Info("Starting Prometheus server for metrics requests", zap.Int("port", 1745))
+		if err := hs.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("Prometheus listener failed", zap.Error(err))
+		}
+	}()
+
 	s.OnNotifyMsg(func(msg *pb.Notify) {
 		log.Debug("收到广播信息", zap.Uint64("id", msg.Id), zap.String("node", msg.Node))
 	})
@@ -89,5 +122,6 @@ func main() {
 	}
 
 	log.Info("服务已经关闭")
+	scopeCloser.Close()
 	cancel()
 }
