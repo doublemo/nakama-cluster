@@ -50,6 +50,10 @@ type Server struct {
 	sync.RWMutex
 }
 
+func (s *Server) Enabled() bool {
+	return s.ctx != nil && s.cancelFn != nil
+}
+
 func (s *Server) NextMessageId() (uint64, error) {
 	return s.snowflake.NextId()
 }
