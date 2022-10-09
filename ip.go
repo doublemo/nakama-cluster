@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-func getLocalIP() (net.IP, error) {
+func LocalIP() (net.IP, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func getLocalIP() (net.IP, error) {
 	return nil, errors.New("get local ip failed")
 }
 
-func getOutboundIP() (string, error) {
+func OutboundIP() (string, error) {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
 		return "", err
@@ -54,7 +54,7 @@ func getOutboundIP() (string, error) {
 	return localAddr.IP.String(), nil
 }
 
-func getPublicIP() (string, error) {
+func PublicIP() (string, error) {
 	resp, err := http.Get("https://ifconfig.me")
 	if err != nil {
 		return "", err

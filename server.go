@@ -10,23 +10,23 @@ import (
 	"github.com/hashicorp/memberlist"
 	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 // 集群配置
 type Config struct {
-	Addr                string `yaml:"gossip_bindaddr" json:"gossip_bindaddr" usage:"Interface address to bind Nakama to for discovery. By default listening on all interfaces."`
-	Port                int    `yaml:"gossip_bindport" json:"gossip_bindport" usage:"Port number to bind Nakama to for discovery. Default value is 7352."`
-	Prefix              string `yaml:"prefix" json:"prefix" usage:"service prefix"`
-	Weight              int    `yaml:"weight" json:"weight" usage:"Peer weight"`
-	PushPullInterval    int    `yaml:"push_pull_interval" json:"push_pull_interval" usage:"push_pull_interval is the interval between complete state syncs, Default value is 60 Second"`
-	GossipInterval      int    `yaml:"gossip_interval" json:"gossip_interval" usage:"gossip_interval is the interval after which a node has died that, Default value is 200 Millisecond"`
-	TCPTimeout          int    `yaml:"tcp_timeout" json:"tcp_timeout" usage:"tcp_timeout is the timeout for establishing a stream connection with a remote node for a full state sync, and for stream read and writeoperations, Default value is 10 Second"`
-	ProbeTimeout        int    `yaml:"probe_timeout" json:"probe_timeout" usage:"probe_timeout is the timeout to wait for an ack from a probed node before assuming it is unhealthy. This should be set to 99-percentile of RTT (round-trip time) on your network, Default value is 500 Millisecond"`
-	ProbeInterval       int    `yaml:"probe_interval" json:"probe_interval" usage:"probe_interval is the interval between random node probes. Setting this lower (more frequent) will cause the memberlist cluster to detect failed nodes more quickly at the expense of increased bandwidth usage., Default value is 1 Second"`
-	RetransmitMult      int    `yaml:"retransmit_mult" json:"retransmit_mult" usage:"retransmit_mult is the multiplier used to determine the maximum number of retransmissions attempted, Default value is 2"`
-	MaxGossipPacketSize int    `yaml:"max_gossip_packet_size" json:"max_gossip_packet_size" usage:"max_gossip_packet_size Maximum number of bytes that memberlist will put in a packet (this will be for UDP packets by default with a NetTransport), Default value is 1400"`
-	RpcAddr             string `yaml:"rpc_addr" json:"rpc_addr" usage:"rpc address to bind Nakama to for grpc. By default local ip."`
-	RpcPort             int    `yaml:"rpc_port" json:"rpc_port" usage:"Port number to bind Nakama to for grpc service. Default value is 7353."`
+	Addr                string      `yaml:"gossip_bindaddr" json:"gossip_bindaddr" usage:"Interface address to bind Nakama to for discovery. By default listening on all interfaces."`
+	Port                int         `yaml:"gossip_bindport" json:"gossip_bindport" usage:"Port number to bind Nakama to for discovery. Default value is 7352."`
+	Prefix              string      `yaml:"prefix" json:"prefix" usage:"service prefix"`
+	Weight              int         `yaml:"weight" json:"weight" usage:"Peer weight"`
+	PushPullInterval    int         `yaml:"push_pull_interval" json:"push_pull_interval" usage:"push_pull_interval is the interval between complete state syncs, Default value is 60 Second"`
+	GossipInterval      int         `yaml:"gossip_interval" json:"gossip_interval" usage:"gossip_interval is the interval after which a node has died that, Default value is 200 Millisecond"`
+	TCPTimeout          int         `yaml:"tcp_timeout" json:"tcp_timeout" usage:"tcp_timeout is the timeout for establishing a stream connection with a remote node for a full state sync, and for stream read and writeoperations, Default value is 10 Second"`
+	ProbeTimeout        int         `yaml:"probe_timeout" json:"probe_timeout" usage:"probe_timeout is the timeout to wait for an ack from a probed node before assuming it is unhealthy. This should be set to 99-percentile of RTT (round-trip time) on your network, Default value is 500 Millisecond"`
+	ProbeInterval       int         `yaml:"probe_interval" json:"probe_interval" usage:"probe_interval is the interval between random node probes. Setting this lower (more frequent) will cause the memberlist cluster to detect failed nodes more quickly at the expense of increased bandwidth usage., Default value is 1 Second"`
+	RetransmitMult      int         `yaml:"retransmit_mult" json:"retransmit_mult" usage:"retransmit_mult is the multiplier used to determine the maximum number of retransmissions attempted, Default value is 2"`
+	MaxGossipPacketSize int         `yaml:"max_gossip_packet_size" json:"max_gossip_packet_size" usage:"max_gossip_packet_size Maximum number of bytes that memberlist will put in a packet (this will be for UDP packets by default with a NetTransport), Default value is 1400"`
+	Rpc                 *GrpcConfig `yaml:"rpc" json:"rpc" usage:"rpc setting"`
 }
 
 type Server struct {
@@ -43,6 +43,7 @@ type Server struct {
 	onNotifyMsg atomic.Value
 	metrics     *Metrics
 	config      Config
+	grpcServer  *grpc.Server
 
 	logger *zap.Logger
 	once   sync.Once
@@ -75,8 +76,19 @@ func (s *Server) Broadcast(msg Broadcast) bool {
 	return false
 }
 
+func (s *Server) StartApiServer(handler GrpcHandler, stream GrpcStreamHandler) (err error) {
+	s.Lock()
+	s.grpcServer, err = newGrpcServer(s.ctx, s.logger, handler, stream, *s.config.Rpc)
+	s.Unlock()
+	return
+}
+
 func (s *Server) Stop() {
 	s.once.Do(func() {
+		if s.grpcServer != nil {
+			s.grpcServer.Stop()
+		}
+
 		if s.cancelFn != nil {
 			s.cancelFn()
 		}
@@ -231,12 +243,13 @@ func NewConfig() *Config {
 		ProbeInterval:       1,
 		RetransmitMult:      2,
 		MaxGossipPacketSize: 1400,
-		RpcAddr:             "",
-		RpcPort:             7353,
-	}
-
-	if ip, err := getLocalIP(); err == nil {
-		c.RpcAddr = ip.String()
+		Rpc: &GrpcConfig{
+			Addr:    "",
+			Port:    7353,
+			X509Pem: "",
+			X509Key: "",
+			Token:   "",
+		},
 	}
 	return c
 }

@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ApiServerClient interface {
 	Call(ctx context.Context, in *Api_Envelope, opts ...grpc.CallOption) (*Api_Envelope, error)
+	Stream(ctx context.Context, opts ...grpc.CallOption) (ApiServer_StreamClient, error)
 }
 
 type apiServerClient struct {
@@ -42,11 +43,46 @@ func (c *apiServerClient) Call(ctx context.Context, in *Api_Envelope, opts ...gr
 	return out, nil
 }
 
+func (c *apiServerClient) Stream(ctx context.Context, opts ...grpc.CallOption) (ApiServer_StreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &ApiServer_ServiceDesc.Streams[0], "/nakama.cluster.api.ApiServer/Stream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &apiServerStreamClient{stream}
+	return x, nil
+}
+
+type ApiServer_StreamClient interface {
+	Send(*Api_Envelope) error
+	CloseAndRecv() (*Api_Envelope, error)
+	grpc.ClientStream
+}
+
+type apiServerStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *apiServerStreamClient) Send(m *Api_Envelope) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *apiServerStreamClient) CloseAndRecv() (*Api_Envelope, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(Api_Envelope)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // ApiServerServer is the server API for ApiServer service.
 // All implementations must embed UnimplementedApiServerServer
 // for forward compatibility
 type ApiServerServer interface {
 	Call(context.Context, *Api_Envelope) (*Api_Envelope, error)
+	Stream(ApiServer_StreamServer) error
 	mustEmbedUnimplementedApiServerServer()
 }
 
@@ -56,6 +92,9 @@ type UnimplementedApiServerServer struct {
 
 func (UnimplementedApiServerServer) Call(context.Context, *Api_Envelope) (*Api_Envelope, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Call not implemented")
+}
+func (UnimplementedApiServerServer) Stream(ApiServer_StreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method Stream not implemented")
 }
 func (UnimplementedApiServerServer) mustEmbedUnimplementedApiServerServer() {}
 
@@ -88,6 +127,32 @@ func _ApiServer_Call_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ApiServer_Stream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ApiServerServer).Stream(&apiServerStreamServer{stream})
+}
+
+type ApiServer_StreamServer interface {
+	SendAndClose(*Api_Envelope) error
+	Recv() (*Api_Envelope, error)
+	grpc.ServerStream
+}
+
+type apiServerStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *apiServerStreamServer) SendAndClose(m *Api_Envelope) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *apiServerStreamServer) Recv() (*Api_Envelope, error) {
+	m := new(Api_Envelope)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // ApiServer_ServiceDesc is the grpc.ServiceDesc for ApiServer service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -100,6 +165,12 @@ var ApiServer_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ApiServer_Call_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Stream",
+			Handler:       _ApiServer_Stream_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "cluster.proto",
 }
