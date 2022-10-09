@@ -25,6 +25,8 @@ type Config struct {
 	ProbeInterval       int    `yaml:"probe_interval" json:"probe_interval" usage:"probe_interval is the interval between random node probes. Setting this lower (more frequent) will cause the memberlist cluster to detect failed nodes more quickly at the expense of increased bandwidth usage., Default value is 1 Second"`
 	RetransmitMult      int    `yaml:"retransmit_mult" json:"retransmit_mult" usage:"retransmit_mult is the multiplier used to determine the maximum number of retransmissions attempted, Default value is 2"`
 	MaxGossipPacketSize int    `yaml:"max_gossip_packet_size" json:"max_gossip_packet_size" usage:"max_gossip_packet_size Maximum number of bytes that memberlist will put in a packet (this will be for UDP packets by default with a NetTransport), Default value is 1400"`
+	RpcAddr             string `yaml:"rpc_addr" json:"rpc_addr" usage:"rpc address to bind Nakama to for grpc. By default local ip."`
+	RpcPort             int    `yaml:"rpc_port" json:"rpc_port" usage:"Port number to bind Nakama to for grpc service. Default value is 7353."`
 }
 
 type Server struct {
@@ -217,7 +219,7 @@ func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node N
 }
 
 func NewConfig() *Config {
-	return &Config{
+	c := &Config{
 		Addr:                "0.0.0.0",
 		Port:                7355,
 		Prefix:              "/nakama-cluster/services/",
@@ -229,5 +231,12 @@ func NewConfig() *Config {
 		ProbeInterval:       1,
 		RetransmitMult:      2,
 		MaxGossipPacketSize: 1400,
+		RpcAddr:             "",
+		RpcPort:             7353,
 	}
+
+	if ip, err := getLocalIP(); err == nil {
+		c.RpcAddr = ip.String()
+	}
+	return c
 }
