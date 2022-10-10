@@ -31,6 +31,7 @@ message Notify {
     string node = 2;
     oneof payload {
         Nakama.Message message = 3;
+        Nakama.Status  status = 4;
     }
 }
 

@@ -80,13 +80,7 @@ func main() {
 			case <-t.C:
 				data := make([]byte, 32)
 				binary.BigEndian.PutUint32(data, rand.Uint32())
-				id, err := s.NextMessageId()
-				if err != nil {
-					log.Error("获取ID失败", zap.Error(err))
-					return
-				}
-
-				msg := nakamacluster.NewBroadcast(&pb.Notify{Id: id, Node: s.Node().Id, Payload: &pb.Notify_Message{Message: &pb.Nakama_Message{Body: []byte{0x1}}}})
+				msg := nakamacluster.NewBroadcast(&pb.Notify{Id: 0, Node: s.Node().Id, Payload: &pb.Notify_Message{Message: &pb.Nakama_Message{Body: []byte{0x1}}}})
 				s.Broadcast(*msg)
 			case <-ctx.Done():
 			}

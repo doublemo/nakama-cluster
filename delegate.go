@@ -49,7 +49,11 @@ func (s *Delegate) NotifyMsg(msg []byte) {
 	lastId := s.messageCur[notify.Node]
 	s.mutex.RUnlock()
 
-	if notify.Id <= lastId {
+	if notify.Id == 1 {
+		if lastId == 1 {
+			return
+		}
+	} else if notify.Id <= lastId {
 		return
 	}
 

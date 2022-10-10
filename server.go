@@ -36,7 +36,6 @@ type Server struct {
 	memberlist  *memberlist.Memberlist
 	localNode   *Node
 	nakamaPeers *Peer
-	snowflake   *snowflake
 	microPeers  atomic.Value
 	msgQueue    *memberlist.TransmitLimitedQueue
 	msgChan     chan Broadcast
@@ -52,10 +51,6 @@ type Server struct {
 
 func (s *Server) Enabled() bool {
 	return s.ctx != nil && s.cancelFn != nil
-}
-
-func (s *Server) NextMessageId() (uint64, error) {
-	return s.snowflake.NextId()
 }
 
 func (s *Server) Node() *Node {
@@ -108,6 +103,7 @@ func (s *Server) serve() {
 	}()
 
 	go s.sdClient.WatchPrefix(s.config.Prefix, watchCh)
+	var seqid uint64
 	for {
 		select {
 		case msg, ok := <-s.msgChan:
@@ -118,6 +114,9 @@ func (s *Server) serve() {
 			if s.metrics != nil {
 				s.metrics.SentBroadcast(int64(len(msg.Message())))
 			}
+
+			seqid++
+			msg.SetId(uint64(seqid))
 			s.msgQueue.QueueBroadcast(&msg)
 
 		case <-watchCh:
@@ -132,7 +131,7 @@ func (s *Server) serve() {
 func (s *Server) watchNodes() {
 	nodes, err := s.nodes()
 	if err != nil {
-		s.logger.Warn("Load nodes failed", zap.Error(err))
+		s.logger.Fatal("Load nodes failed", zap.Error(err))
 		return
 	}
 
@@ -153,7 +152,7 @@ func (s *Server) watchNodes() {
 func (s *Server) up(list *memberlist.Memberlist) {
 	nodes, err := s.nodes()
 	if err != nil {
-		s.logger.Warn("join failed", zap.Error(err))
+		s.logger.Fatal("join failed", zap.Error(err))
 		return
 	}
 
@@ -170,6 +169,8 @@ func (s *Server) up(list *memberlist.Memberlist) {
 		s.logger.Error("Join failed", zap.Error(err))
 		return
 	}
+
+	s.logger.Info("Node up", zap.Any("nodes", joins))
 }
 
 func (s *Server) nodes() ([]*Node, error) {
@@ -177,7 +178,6 @@ func (s *Server) nodes() ([]*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	nodes := make([]*Node, len(entries))
 	for k, v := range entries {
 		node := Node{}
@@ -201,7 +201,6 @@ func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node N
 		nakamaPeers: NewPeer(),
 		localNode:   &node,
 		msgChan:     make(chan Broadcast, 128),
-		snowflake:   newSnowflake(node.Id),
 	}
 
 	// metrics

@@ -13,7 +13,7 @@ import (
 type Broadcast struct {
 	id       uint64
 	name     string
-	payload  []byte
+	payload  *pb.Notify
 	finished chan struct{}
 }
 
@@ -29,7 +29,8 @@ func (b *Broadcast) Invalidates(other memberlist.Broadcast) bool {
 
 // Returns a byte form of the message
 func (b *Broadcast) Message() []byte {
-	return b.payload
+	bytes, _ := proto.Marshal(b.payload)
+	return bytes
 }
 
 // Finished is invoked when the message will no longer
@@ -51,6 +52,11 @@ func (b *Broadcast) Sended() bool {
 	case <-ctx.Done():
 	}
 	return false
+}
+
+func (b *Broadcast) SetId(id uint64) {
+	b.id = id
+	b.payload.Id = id
 }
 
 // NamedBroadcast is an optional extension of the Broadcast interface that
@@ -77,25 +83,10 @@ func (b *Broadcast) Name() string {
 
 // NewBroadcast 创建广播
 func NewBroadcast(payload *pb.Notify) *Broadcast {
-	bytes, _ := proto.Marshal(payload)
 	return &Broadcast{
 		id:       payload.Id,
 		name:     fmt.Sprint(payload.Id),
-		payload:  bytes,
+		payload:  payload,
 		finished: make(chan struct{}),
 	}
-}
-
-func NewBroadcastWithError(payload *pb.Notify) (*Broadcast, error) {
-	bytes, err := proto.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Broadcast{
-		id:       payload.Id,
-		name:     fmt.Sprint(payload.Id),
-		payload:  bytes,
-		finished: make(chan struct{}),
-	}, nil
 }

@@ -8,6 +8,10 @@ import (
 
 func buildMemberListConfig(c Config) *memberlist.Config {
 	memberlistConfig := memberlist.DefaultLocalConfig()
+	if len(c.Addr) < 1 {
+		c.Addr = "0.0.0.0"
+	}
+
 	memberlistConfig.BindAddr = c.Addr
 	memberlistConfig.BindPort = c.Port
 	memberlistConfig.PushPullInterval = time.Duration(c.ProbeInterval) * time.Second
