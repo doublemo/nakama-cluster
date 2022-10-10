@@ -61,7 +61,6 @@ message Nakama {
     }
 }
 
-
 // error
 message Error {
     // The error code which should be one of "Error.Code" enums.

@@ -2,6 +2,7 @@ package nakamacluster
 
 import (
 	"context"
+	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/hashicorp/memberlist"
 	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 )
 
@@ -223,6 +225,10 @@ func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node N
 	memberlistConfig.Delegate = delegate
 	memberlistConfig.Events = delegate
 	memberlistConfig.Alive = delegate
+	if !logger.Core().Enabled(zapcore.DebugLevel) {
+		memberlistConfig.Logger.SetOutput(io.Discard)
+	}
+
 	list, err := memberlist.Create(memberlistConfig)
 	if err != nil {
 		logger.Fatal("Create memberlist failed", zap.Error(err))
