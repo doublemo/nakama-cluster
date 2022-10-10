@@ -119,7 +119,14 @@ func (s *Server) serve() {
 
 			seqid++
 			msg.SetId(uint64(seqid))
-			s.msgQueue.QueueBroadcast(&msg)
+			msg.SetNode(s.localNode.Id)
+			if len(msg.to) < 1 {
+				s.msgQueue.QueueBroadcast(&msg)
+			} else {
+				for _, to := range msg.to {
+					s.memberlist.SendReliable(to, msg.Message())
+				}
+			}
 
 		case <-watchCh:
 			s.watchNodes()
