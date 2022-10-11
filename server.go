@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/doublemo/nakama-cluster/sd"
+	sockaddr "github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/memberlist"
 	"github.com/uber-go/tally/v4"
 	"go.uber.org/zap"
@@ -84,6 +85,18 @@ func (s *Server) StartApiServer(handler GrpcHandler, stream GrpcStreamHandler) (
 	return
 }
 
+func (s *Server) GetPeerById(id string) (*Node, bool) {
+	return s.nakamaPeers.Get(id)
+}
+
+func (s *Server) GetPeers() []*Node {
+	return s.nakamaPeers.All()
+}
+
+func (s *Server) GetPeersMap() map[string]*Node {
+	return s.nakamaPeers.AllToMap()
+}
+
 func (s *Server) Stop() {
 	s.once.Do(func() {
 		if s.grpcServer != nil {
@@ -124,12 +137,23 @@ func (s *Server) serve() {
 				s.msgQueue.QueueBroadcast(&msg)
 			} else {
 				for _, to := range msg.to {
-					s.memberlist.SendReliable(to, msg.Message())
+					ipaddr, err := sockaddr.NewIPAddr(to.Addr)
+					if err != nil {
+						s.logger.Error("Parse failed, node ip is valid", zap.Error(err), zap.String("addr", to.Addr))
+						continue
+					}
+
+					node := &memberlist.Node{Name: to.Id, Addr: *ipaddr.NetIP(), Port: uint16(ipaddr.IPPort())}
+					err = s.memberlist.SendReliable(node, msg.Message())
+					if err != nil {
+						s.logger.Error("Send message failed", zap.Error(err))
+						continue
+					}
 				}
 			}
 
 		case <-watchCh:
-			s.watchNodes()
+			s.storeMicroPeers()
 
 		case <-s.ctx.Done():
 			return
@@ -137,7 +161,7 @@ func (s *Server) serve() {
 	}
 }
 
-func (s *Server) watchNodes() {
+func (s *Server) storeMicroPeers() {
 	nodes, err := s.nodes()
 	if err != nil {
 		s.logger.Fatal("Load nodes failed", zap.Error(err))

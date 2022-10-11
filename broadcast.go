@@ -15,7 +15,7 @@ type Broadcast struct {
 	name     string
 	payload  *pb.Notify
 	finished chan struct{}
-	to       []*memberlist.Node
+	to       []*Node
 }
 
 // Invalidates checks if enqueuing the current broadcast
@@ -87,7 +87,7 @@ func (b *Broadcast) Name() string {
 }
 
 // NewBroadcast 创建广播
-func NewBroadcast(payload *pb.Notify, to ...*memberlist.Node) *Broadcast {
+func NewBroadcast(payload *pb.Notify, to ...*Node) *Broadcast {
 	return &Broadcast{
 		id:       payload.Id,
 		name:     fmt.Sprint(payload.Id),

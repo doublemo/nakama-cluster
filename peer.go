@@ -12,6 +12,44 @@ type Peer struct {
 	sync.RWMutex
 }
 
+func (peer *Peer) Get(id string) (*Node, bool) {
+	peer.Lock()
+	defer peer.Unlock()
+	node, ok := peer.nodes[id]
+	if !ok {
+		return nil, false
+	}
+	return node.Clone(), true
+}
+
+func (peer *Peer) All() []*Node {
+	len := peer.Len()
+	nodes := make([]*Node, len)
+
+	i := 0
+	peer.RLock()
+	for _, v := range peer.nodes {
+		peer.RUnlock()
+		nodes[i] = v.Clone()
+		i++
+		peer.RLock()
+	}
+	peer.RUnlock()
+	return nodes
+}
+
+func (peer *Peer) AllToMap() map[string]*Node {
+	nodes := make(map[string]*Node)
+	peer.RLock()
+	for k, v := range peer.nodes {
+		peer.RUnlock()
+		nodes[k] = v.Clone()
+		peer.RLock()
+	}
+	peer.RUnlock()
+	return nodes
+}
+
 func (peer *Peer) Add(node Node) {
 	peer.Lock()
 	defer peer.Unlock()

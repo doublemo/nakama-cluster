@@ -13,6 +13,7 @@ func (s *Delegate) NotifyJoin(node *memberlist.Node) {
 		s.logger.Error("NotifyJoin meta error:", zap.Error(err))
 		return
 	}
+
 	s.server.nakamaPeers.Add(*meta)
 	s.logger.Debug("NotifyJoin", zap.String("name", node.Name), zap.Int("node_num", s.server.nakamaPeers.Len()))
 	if s.server.metrics != nil {
@@ -39,6 +40,7 @@ func (s *Delegate) NotifyUpdate(node *memberlist.Node) {
 		s.logger.Error("NotifyJoin meta error:", zap.Error(err))
 		return
 	}
+
 	s.server.nakamaPeers.Add(*meta)
 	s.logger.Debug("NotifyUpdate", zap.Any("node", node))
 }

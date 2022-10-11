@@ -39,6 +39,7 @@ message Notify {
 message Nakama {
     message Message {
         bytes body = 1;
+        repeated string presences = 2;
     }
 
     message Status {
@@ -58,6 +59,7 @@ message Nakama {
         bool persistence = 4;
         // A user-set status message for this stream, if applicable.
         google.protobuf.StringValue status = 5;
+        int32 format = 6; 
     }
 }
 
