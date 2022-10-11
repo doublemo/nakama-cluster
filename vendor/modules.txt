@@ -87,6 +87,9 @@ github.com/sean-/seed
 # github.com/serialx/hashring v0.0.0-20200727003509-22c0c7ab6b1b
 ## explicit
 github.com/serialx/hashring
+# github.com/shimingyah/pool v1.0.0
+## explicit; go 1.12
+github.com/shimingyah/pool
 # github.com/twmb/murmur3 v1.1.5
 ## explicit; go 1.11
 github.com/twmb/murmur3

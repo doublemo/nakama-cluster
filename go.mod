@@ -28,6 +28,7 @@ require (
 	github.com/prometheus/procfs v0.6.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/serialx/hashring v0.0.0-20200727003509-22c0c7ab6b1b // indirect
+	github.com/shimingyah/pool v1.0.0 // indirect
 	github.com/twmb/murmur3 v1.1.5 // indirect
 	github.com/uber-go/tally/v4 v4.1.2 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.5 // indirect

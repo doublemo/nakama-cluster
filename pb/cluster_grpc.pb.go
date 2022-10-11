@@ -54,7 +54,7 @@ func (c *apiServerClient) Stream(ctx context.Context, opts ...grpc.CallOption) (
 
 type ApiServer_StreamClient interface {
 	Send(*Api_Envelope) error
-	CloseAndRecv() (*Api_Envelope, error)
+	Recv() (*Api_Envelope, error)
 	grpc.ClientStream
 }
 
@@ -66,10 +66,7 @@ func (x *apiServerStreamClient) Send(m *Api_Envelope) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *apiServerStreamClient) CloseAndRecv() (*Api_Envelope, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
+func (x *apiServerStreamClient) Recv() (*Api_Envelope, error) {
 	m := new(Api_Envelope)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -132,7 +129,7 @@ func _ApiServer_Stream_Handler(srv interface{}, stream grpc.ServerStream) error 
 }
 
 type ApiServer_StreamServer interface {
-	SendAndClose(*Api_Envelope) error
+	Send(*Api_Envelope) error
 	Recv() (*Api_Envelope, error)
 	grpc.ServerStream
 }
@@ -141,7 +138,7 @@ type apiServerStreamServer struct {
 	grpc.ServerStream
 }
 
-func (x *apiServerStreamServer) SendAndClose(m *Api_Envelope) error {
+func (x *apiServerStreamServer) Send(m *Api_Envelope) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -169,6 +166,7 @@ var ApiServer_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Stream",
 			Handler:       _ApiServer_Stream_Handler,
+			ServerStreams: true,
 			ClientStreams: true,
 		},
 	},

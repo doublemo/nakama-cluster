@@ -14,8 +14,8 @@ func (s *Delegate) NotifyJoin(node *memberlist.Node) {
 		return
 	}
 
-	s.server.nakamaPeers.Add(*meta)
-	s.logger.Debug("NotifyJoin", zap.String("name", node.Name), zap.Int("node_num", s.server.nakamaPeers.Len()))
+	s.server.nakamaPeers.add(meta)
+	s.logger.Debug("NotifyJoin", zap.String("name", node.Name), zap.Int("node_num", s.server.nakamaPeers.Size()))
 	if s.server.metrics != nil {
 		s.server.metrics.NodeJoin()
 	}
@@ -24,8 +24,8 @@ func (s *Delegate) NotifyJoin(node *memberlist.Node) {
 // NotifyLeave is invoked when a node is detected to have left.
 // The Node argument must not be modified.
 func (s *Delegate) NotifyLeave(node *memberlist.Node) {
-	s.logger.Debug("NotifyLeave", zap.Any("node", node.Name), zap.Int("node_num", s.server.nakamaPeers.Len()))
-	s.server.nakamaPeers.Delete(node.Name)
+	s.logger.Debug("NotifyLeave", zap.Any("node", node.Name), zap.Int("node_num", s.server.nakamaPeers.Size()))
+	s.server.nakamaPeers.delete(node.Name)
 	if s.server.metrics != nil {
 		s.server.metrics.NodeLeave()
 	}
@@ -41,7 +41,7 @@ func (s *Delegate) NotifyUpdate(node *memberlist.Node) {
 		return
 	}
 
-	s.server.nakamaPeers.Add(*meta)
+	s.server.nakamaPeers.add(meta)
 	s.logger.Debug("NotifyUpdate", zap.Any("node", node))
 }
 

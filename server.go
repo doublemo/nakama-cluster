@@ -16,30 +16,14 @@ import (
 	"google.golang.org/grpc"
 )
 
-// 集群配置
-type Config struct {
-	Addr                string      `yaml:"gossip_bindaddr" json:"gossip_bindaddr" usage:"Interface address to bind Nakama to for discovery. By default listening on all interfaces."`
-	Port                int         `yaml:"gossip_bindport" json:"gossip_bindport" usage:"Port number to bind Nakama to for discovery. Default value is 7352."`
-	Prefix              string      `yaml:"prefix" json:"prefix" usage:"service prefix"`
-	Weight              int         `yaml:"weight" json:"weight" usage:"Peer weight"`
-	PushPullInterval    int         `yaml:"push_pull_interval" json:"push_pull_interval" usage:"push_pull_interval is the interval between complete state syncs, Default value is 60 Second"`
-	GossipInterval      int         `yaml:"gossip_interval" json:"gossip_interval" usage:"gossip_interval is the interval after which a node has died that, Default value is 200 Millisecond"`
-	TCPTimeout          int         `yaml:"tcp_timeout" json:"tcp_timeout" usage:"tcp_timeout is the timeout for establishing a stream connection with a remote node for a full state sync, and for stream read and writeoperations, Default value is 10 Second"`
-	ProbeTimeout        int         `yaml:"probe_timeout" json:"probe_timeout" usage:"probe_timeout is the timeout to wait for an ack from a probed node before assuming it is unhealthy. This should be set to 99-percentile of RTT (round-trip time) on your network, Default value is 500 Millisecond"`
-	ProbeInterval       int         `yaml:"probe_interval" json:"probe_interval" usage:"probe_interval is the interval between random node probes. Setting this lower (more frequent) will cause the memberlist cluster to detect failed nodes more quickly at the expense of increased bandwidth usage., Default value is 1 Second"`
-	RetransmitMult      int         `yaml:"retransmit_mult" json:"retransmit_mult" usage:"retransmit_mult is the multiplier used to determine the maximum number of retransmissions attempted, Default value is 2"`
-	MaxGossipPacketSize int         `yaml:"max_gossip_packet_size" json:"max_gossip_packet_size" usage:"max_gossip_packet_size Maximum number of bytes that memberlist will put in a packet (this will be for UDP packets by default with a NetTransport), Default value is 1400"`
-	Rpc                 *GrpcConfig `yaml:"rpc" json:"rpc" usage:"rpc setting"`
-}
-
 type Server struct {
 	ctx         context.Context
 	cancelFn    context.CancelFunc
 	sdClient    sd.Client
 	memberlist  *memberlist.Memberlist
 	localNode   *Node
-	nakamaPeers *Peer
-	microPeers  atomic.Value
+	nakamaPeers *LocalPeer
+	microPeers  *LocalPeer
 	msgQueue    *memberlist.TransmitLimitedQueue
 	msgChan     chan Broadcast
 	onNotifyMsg atomic.Value
@@ -47,16 +31,24 @@ type Server struct {
 	config      Config
 	grpcServer  *grpc.Server
 
-	logger *zap.Logger
-	once   sync.Once
+	logger   *zap.Logger
+	once     sync.Once
+	enabled  int32
+	nodeType int32
 	sync.RWMutex
 }
 
 func (s *Server) Enabled() bool {
-	return s.ctx != nil && s.cancelFn != nil
+	return atomic.LoadInt32(&s.enabled) > 0
+}
+
+func (s *Server) NodeType() NodeType {
+	return NodeType(atomic.LoadInt32(&s.nodeType))
 }
 
 func (s *Server) Node() *Node {
+	s.RLock()
+	defer s.RUnlock()
 	return s.localNode.Clone()
 }
 
@@ -69,6 +61,11 @@ func (s *Server) Metrics() *Metrics {
 }
 
 func (s *Server) Broadcast(msg Broadcast) bool {
+	nt := s.NodeType()
+	if nt != NODE_TYPE_NAKAMA {
+		return false
+	}
+
 	select {
 	case s.msgChan <- msg:
 		return true
@@ -85,16 +82,12 @@ func (s *Server) StartApiServer(handler GrpcHandler, stream GrpcStreamHandler) (
 	return
 }
 
-func (s *Server) GetPeerById(id string) (*Node, bool) {
-	return s.nakamaPeers.Get(id)
+func (s *Server) NakamaPeer() Peer {
+	return s.nakamaPeers
 }
 
-func (s *Server) GetPeers() []*Node {
-	return s.nakamaPeers.All()
-}
-
-func (s *Server) GetPeersMap() map[string]*Node {
-	return s.nakamaPeers.AllToMap()
+func (s *Server) MicroPeer() Peer {
+	return s.microPeers
 }
 
 func (s *Server) Stop() {
@@ -109,7 +102,7 @@ func (s *Server) Stop() {
 	})
 }
 
-func (s *Server) serve() {
+func (s *Server) nakamaServe() {
 	watchCh := make(chan struct{}, 1)
 	s.sdClient.Register(s.localNode.ToService(s.config.Prefix))
 	defer func() {
@@ -153,7 +146,7 @@ func (s *Server) serve() {
 			}
 
 		case <-watchCh:
-			s.storeMicroPeers()
+			s.updatePeers()
 
 		case <-s.ctx.Done():
 			return
@@ -161,25 +154,43 @@ func (s *Server) serve() {
 	}
 }
 
-func (s *Server) storeMicroPeers() {
+func (s *Server) microServe() {
+	watchCh := make(chan struct{}, 1)
+	s.sdClient.Register(s.localNode.ToService(s.config.Prefix))
+	defer func() {
+		s.sdClient.Deregister(s.localNode.ToService(s.config.Prefix))
+	}()
+
+	go s.sdClient.WatchPrefix(s.config.Prefix, watchCh)
+	for {
+		select {
+		case <-watchCh:
+			s.updatePeers()
+
+		case <-s.ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *Server) updatePeers() {
 	nodes, err := s.nodes()
 	if err != nil {
 		s.logger.Fatal("Load nodes failed", zap.Error(err))
 		return
 	}
 
-	microPeers := make(map[string]*Peer)
+	isNakama := s.localNode.NodeType == NODE_TYPE_NAKAMA
 	for _, node := range nodes {
 		if node.NodeType == NODE_TYPE_NAKAMA {
-			continue
+			if isNakama {
+				continue
+			}
+			s.nakamaPeers.add(node)
+		} else {
+			s.microPeers.add(node)
 		}
-
-		if _, ok := microPeers[node.Name]; !ok {
-			microPeers[node.Name] = NewPeer()
-		}
-		microPeers[node.Name].Add(*node)
 	}
-	s.microPeers.Store(microPeers)
 }
 
 func (s *Server) up(list *memberlist.Memberlist) {
@@ -225,15 +236,24 @@ func (s *Server) nodes() ([]*Node, error) {
 
 func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node Node, metrics tally.Scope, c Config) *Server {
 	ctx, cancel := context.WithCancel(ctx)
+	peerOptions := PeerOptions{
+		MaxIdle:              c.GrpcPoolMaxIdle,
+		MaxActive:            c.GrpcPoolMaxActive,
+		MaxConcurrentStreams: c.GrpcPoolMaxConcurrentStreams,
+		Reuse:                c.GrpcPoolReuse,
+		MessageQueueSize:     c.MaxGossipPacketSize,
+	}
+
 	s := &Server{
 		ctx:         ctx,
 		cancelFn:    cancel,
 		sdClient:    client,
 		logger:      logger,
 		config:      c,
-		nakamaPeers: NewPeer(),
+		nakamaPeers: NewPeer(ctx, logger, peerOptions),
+		microPeers:  NewPeer(ctx, logger, peerOptions),
 		localNode:   &node,
-		msgChan:     make(chan Broadcast, 128),
+		msgChan:     make(chan Broadcast, c.BroadcastQueueSize),
 	}
 
 	// metrics
@@ -241,55 +261,46 @@ func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node N
 		s.metrics = newMetrics(metrics)
 	}
 
-	s.microPeers.Store(make(map[string]*Peer))
+	if node.NodeType == NODE_TYPE_MICROSERVICES {
+		microServer(s)
+	} else {
+		nakamaServer(s)
+	}
+
+	atomic.StoreInt32(&s.enabled, 1)
+	atomic.StoreInt32(&s.nodeType, int32(node.NodeType))
+	return s
+}
+
+func microServer(s *Server) {
+	go s.microServe()
+}
+
+func nakamaServer(s *Server) {
+	c := s.config
 	s.msgQueue = &memberlist.TransmitLimitedQueue{
 		NumNodes: func() int {
-			return s.nakamaPeers.Len()
+			return s.nakamaPeers.Size()
 		},
 		RetransmitMult: c.RetransmitMult,
 	}
 
-	delegate := newDelegate(logger, s)
+	delegate := newDelegate(s.logger, s)
 	memberlistConfig := buildMemberListConfig(c)
-	memberlistConfig.Name = node.Id
+	memberlistConfig.Name = s.localNode.Id
 	memberlistConfig.Ping = delegate
 	memberlistConfig.Delegate = delegate
 	memberlistConfig.Events = delegate
 	memberlistConfig.Alive = delegate
-	if !logger.Core().Enabled(zapcore.DebugLevel) {
+	if !s.logger.Core().Enabled(zapcore.DebugLevel) {
 		memberlistConfig.Logger.SetOutput(io.Discard)
 	}
 
 	list, err := memberlist.Create(memberlistConfig)
 	if err != nil {
-		logger.Fatal("Create memberlist failed", zap.Error(err))
+		s.logger.Fatal("Create memberlist failed", zap.Error(err))
 	}
 	s.memberlist = list
 	s.up(list)
-	go s.serve()
-	return s
-}
-
-func NewConfig() *Config {
-	c := &Config{
-		Addr:                "0.0.0.0",
-		Port:                7355,
-		Prefix:              "/nakama-cluster/services/",
-		Weight:              1,
-		PushPullInterval:    10,
-		GossipInterval:      200,
-		TCPTimeout:          10,
-		ProbeTimeout:        500,
-		ProbeInterval:       1,
-		RetransmitMult:      2,
-		MaxGossipPacketSize: 1400,
-		Rpc: &GrpcConfig{
-			Addr:    "",
-			Port:    7353,
-			X509Pem: "",
-			X509Key: "",
-			Token:   "",
-		},
-	}
-	return c
+	go s.nakamaServe()
 }

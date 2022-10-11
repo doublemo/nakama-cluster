@@ -9,6 +9,7 @@ import (
 
 	"github.com/doublemo/nakama-cluster/pb"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/shimingyah/pool"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/channelz/service"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
@@ -58,7 +60,20 @@ func (s *grpcServer) Stream(in pb.ApiServer_StreamServer) error {
 }
 
 func newGrpcServer(ctx context.Context, logger *zap.Logger, handler GrpcHandler, streamHandler GrpcStreamHandler, c GrpcConfig) (*grpc.Server, error) {
-	opts := []grpc.ServerOption{}
+	opts := []grpc.ServerOption{
+		grpc.InitialWindowSize(pool.InitialWindowSize),
+		grpc.InitialConnWindowSize(pool.InitialConnWindowSize),
+		grpc.MaxSendMsgSize(pool.MaxSendMsgSize),
+		grpc.MaxRecvMsgSize(pool.MaxRecvMsgSize),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			PermitWithoutStream: true,
+		}),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			Time:    pool.KeepAliveTime,
+			Timeout: pool.KeepAliveTimeout,
+		}),
+	}
+
 	if len(c.X509Key) > 0 && len(c.X509Pem) > 0 {
 		cert, err := tls.LoadX509KeyPair(c.X509Pem, c.X509Key)
 		if err != nil {

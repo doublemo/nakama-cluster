@@ -8,7 +8,7 @@ option go_package = "github.com/doublemo/nakama-cluster/pb";
 // 微服务接口
 service ApiServer{
     rpc Call(Api.Envelope) returns(Api.Envelope) {}
-    rpc Stream(stream Api.Envelope) returns (Api.Envelope) {}
+    rpc Stream(stream Api.Envelope) returns (stream Api.Envelope) {}
 }
 
 // 接口
