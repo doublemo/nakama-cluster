@@ -19,7 +19,35 @@ message Envelope {
         realtime.Envelope NakamaRtapi = 3;
         Bytes bytes   = 4;
         Error error = 5;
+        ProxyMessage  proxy =6;
+        UserStatus userStatus = 7;
     }
+}
+
+message UserStatus {
+    enum Action {
+        Join = 0;
+        Leave = 1;
+    }
+
+    // The user this presence belongs to.
+    string user_id = 1;
+    // A unique session ID identifying the particular connection, because the user may have many.
+    string session_id = 2;
+    // The username for display purposes.
+    string username = 3;
+	int32 format  = 4;
+	map<string, string> vars = 5;
+	int64 expiry     = 6;
+	string clientIP = 7;
+	string clientPort = 8;
+	string lang = 9;
+    Action action  = 10;
+}
+
+message ProxyMessage {
+    repeated realtime.UserPresence presences = 1;
+    bytes message   = 2;
 }
 
 message NodeStatus {
