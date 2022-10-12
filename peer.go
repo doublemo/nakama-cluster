@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/doublemo/nakama-cluster/pb"
+	"github.com/doublemo/nakama-cluster/api"
 	"github.com/serialx/hashring"
 	"github.com/shimingyah/pool"
 	"go.uber.org/zap"
@@ -18,8 +18,8 @@ type Peer interface {
 	AllToMap() map[string]*Node
 	Size() int
 	SizeByName(name string) int
-	Send(ctx context.Context, node *Node, in *pb.Api_Envelope) (*pb.Api_Envelope, error)
-	SendStream(ctx context.Context, clientId string, node *Node, in *pb.Api_Envelope, md metadata.MD) (created bool, ch chan *pb.Api_Envelope, err error)
+	Send(ctx context.Context, node *Node, in *api.Envelope) (*api.Envelope, error)
+	SendStream(ctx context.Context, clientId string, node *Node, in *api.Envelope, md metadata.MD) (created bool, ch chan *api.Envelope, err error)
 	GetWithHashRing(name, k string) (*Node, bool)
 }
 
@@ -128,7 +128,7 @@ func (peer *LocalPeer) SizeByName(name string) int {
 	return peer.nodesByName[name]
 }
 
-func (peer *LocalPeer) Send(ctx context.Context, node *Node, in *pb.Api_Envelope) (*pb.Api_Envelope, error) {
+func (peer *LocalPeer) Send(ctx context.Context, node *Node, in *api.Envelope) (*api.Envelope, error) {
 	p, err := peer.makeGrpcPool(node.Id, node.Addr)
 	if err != nil {
 		return nil, err
@@ -140,14 +140,14 @@ func (peer *LocalPeer) Send(ctx context.Context, node *Node, in *pb.Api_Envelope
 	}
 
 	defer conn.Close()
-	client := pb.NewApiServerClient(conn.Value())
+	client := api.NewApiServerClient(conn.Value())
 	return client.Call(ctx, in)
 }
 
-func (peer *LocalPeer) SendStream(ctx context.Context, clientId string, node *Node, in *pb.Api_Envelope, md metadata.MD) (created bool, ch chan *pb.Api_Envelope, err error) {
+func (peer *LocalPeer) SendStream(ctx context.Context, clientId string, node *Node, in *api.Envelope, md metadata.MD) (created bool, ch chan *api.Envelope, err error) {
 	stream, ok := peer.grpcStreams.Load(clientId)
 	if ok {
-		err = stream.(pb.ApiServer_StreamClient).Send(in)
+		err = stream.(api.ApiServer_StreamClient).Send(in)
 		return
 	}
 
@@ -163,7 +163,7 @@ func (peer *LocalPeer) SendStream(ctx context.Context, clientId string, node *No
 
 	defer conn.Close()
 
-	client := pb.NewApiServerClient(conn.Value())
+	client := api.NewApiServerClient(conn.Value())
 
 	ctxStream, ok := peer.grpcStreamCancelFn.Load(node.Id)
 	if ok {
@@ -181,7 +181,7 @@ func (peer *LocalPeer) SendStream(ctx context.Context, clientId string, node *No
 		return false, nil, err
 	}
 
-	ch = make(chan *pb.Api_Envelope, peer.options.MessageQueueSize)
+	ch = make(chan *api.Envelope, peer.options.MessageQueueSize)
 	go func() {
 		defer func() {
 			close(ch)
@@ -264,6 +264,19 @@ func (peer *LocalPeer) delete(id string) {
 		m.(*streamContext).cancel()
 		peer.grpcStreamCancelFn.Delete(id)
 	}
+}
+
+func (peer *LocalPeer) update(id string, status NodeStatus) {
+	peer.Lock()
+	defer peer.Unlock()
+	node, ok := peer.nodes[id]
+	if !ok {
+		return
+	}
+
+	newNode := node.Clone()
+	newNode.NodeStatus = status
+	peer.nodes[id] = newNode
 }
 
 func (peer *LocalPeer) makeGrpcPool(id, addr string) (pool.Pool, error) {

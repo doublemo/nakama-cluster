@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package nakama.cluster;
+
+import "rtapi/realtime.proto";
+option go_package = "github.com/doublemo/nakama-cluster/api";
+
+// 微服务接口
+service ApiServer{
+    rpc Call(Envelope) returns(Envelope) {}
+    rpc Stream(stream Envelope) returns (stream Envelope) {}
+}
+
+// 接口
+message Envelope {
+    uint64 id = 1;
+    string node = 2;
+    oneof payload {
+        realtime.Envelope NakamaRtapi = 3;
+        Bytes bytes   = 4;
+        Error error = 5;
+    }
+}
+
+message NodeStatus {
+    string node  = 1;
+    int32  status = 2;
+    bool join = 3;
+}
+
+// bytes
+message Bytes {
+    bytes Content = 1;
+}
+
+// error
+message Error {
+    // The error code which should be one of "Error.Code" enums.
+    int32 code = 1;
+    // A message in English to help developers debug the response.
+    string message = 2;
+    // Additional error details which may be different for each response.
+    map<string, string> context = 3;
+}

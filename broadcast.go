@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/doublemo/nakama-cluster/pb"
+	"github.com/doublemo/nakama-cluster/api"
 	"github.com/hashicorp/memberlist"
 	"google.golang.org/protobuf/proto"
 )
@@ -13,7 +13,7 @@ import (
 type Broadcast struct {
 	id       uint64
 	name     string
-	payload  *pb.Notify
+	payload  *api.Envelope
 	finished chan struct{}
 	to       []*Node
 }
@@ -87,7 +87,7 @@ func (b *Broadcast) Name() string {
 }
 
 // NewBroadcast 创建广播
-func NewBroadcast(payload *pb.Notify, to ...*Node) *Broadcast {
+func NewBroadcast(payload *api.Envelope, to ...*Node) *Broadcast {
 	return &Broadcast{
 		id:       payload.Id,
 		name:     fmt.Sprint(payload.Id),

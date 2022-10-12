@@ -21,7 +21,7 @@ type Server struct {
 	cancelFn    context.CancelFunc
 	sdClient    sd.Client
 	memberlist  *memberlist.Memberlist
-	localNode   *Node
+	node        *Node
 	nakamaPeers *LocalPeer
 	microPeers  *LocalPeer
 	msgQueue    *memberlist.TransmitLimitedQueue
@@ -49,7 +49,15 @@ func (s *Server) NodeType() NodeType {
 func (s *Server) Node() *Node {
 	s.RLock()
 	defer s.RUnlock()
-	return s.localNode.Clone()
+	return s.node.Clone()
+}
+
+func (s *Server) UpdateNode(status NodeStatus) {
+	node := s.Node()
+	node.NodeStatus = status
+	s.Lock()
+	s.node = node
+	s.Unlock()
 }
 
 func (s *Server) OnNotifyMsg(f NotifyMsgHandle) {
@@ -104,9 +112,10 @@ func (s *Server) Stop() {
 
 func (s *Server) nakamaServe() {
 	watchCh := make(chan struct{}, 1)
-	s.sdClient.Register(s.localNode.ToService(s.config.Prefix))
+	node := s.Node()
+	s.sdClient.Register(node.ToService(s.config.Prefix))
 	defer func() {
-		s.sdClient.Deregister(s.localNode.ToService(s.config.Prefix))
+		s.sdClient.Deregister(node.ToService(s.config.Prefix))
 		s.memberlist.Leave(time.Second * 5)
 	}()
 
@@ -125,7 +134,7 @@ func (s *Server) nakamaServe() {
 
 			seqid++
 			msg.SetId(uint64(seqid))
-			msg.SetNode(s.localNode.Id)
+			msg.SetNode(node.Id)
 			if len(msg.to) < 1 {
 				s.msgQueue.QueueBroadcast(&msg)
 			} else {
@@ -156,9 +165,10 @@ func (s *Server) nakamaServe() {
 
 func (s *Server) microServe() {
 	watchCh := make(chan struct{}, 1)
-	s.sdClient.Register(s.localNode.ToService(s.config.Prefix))
+	node := s.Node()
+	s.sdClient.Register(node.ToService(s.config.Prefix))
 	defer func() {
-		s.sdClient.Deregister(s.localNode.ToService(s.config.Prefix))
+		s.sdClient.Deregister(node.ToService(s.config.Prefix))
 	}()
 
 	go s.sdClient.WatchPrefix(s.config.Prefix, watchCh)
@@ -180,7 +190,8 @@ func (s *Server) updatePeers() {
 		return
 	}
 
-	isNakama := s.localNode.NodeType == NODE_TYPE_NAKAMA
+	n := s.Node()
+	isNakama := n.NodeType == NODE_TYPE_NAKAMA
 	for _, node := range nodes {
 		if node.NodeType == NODE_TYPE_NAKAMA {
 			if isNakama {
@@ -200,9 +211,10 @@ func (s *Server) up(list *memberlist.Memberlist) {
 		return
 	}
 
+	n := s.Node()
 	joins := make([]string, 0)
 	for _, node := range nodes {
-		if node == nil || node.Id == s.localNode.Id || node.NodeType != NODE_TYPE_NAKAMA {
+		if node == nil || node.Id == n.Id || node.NodeType != NODE_TYPE_NAKAMA {
 			continue
 		}
 
@@ -213,7 +225,6 @@ func (s *Server) up(list *memberlist.Memberlist) {
 		s.logger.Error("Join failed", zap.Error(err))
 		return
 	}
-
 	s.logger.Info("Node up", zap.Any("nodes", joins))
 }
 
@@ -252,7 +263,7 @@ func NewServer(ctx context.Context, logger *zap.Logger, client sd.Client, node N
 		config:      c,
 		nakamaPeers: NewPeer(ctx, logger, peerOptions),
 		microPeers:  NewPeer(ctx, logger, peerOptions),
-		localNode:   &node,
+		node:        &node,
 		msgChan:     make(chan Broadcast, c.BroadcastQueueSize),
 	}
 
@@ -285,9 +296,9 @@ func nakamaServer(s *Server) {
 		RetransmitMult: c.RetransmitMult,
 	}
 
-	delegate := newDelegate(s.logger, s)
+	delegate := newDelegate(s.logger, s, 1<<20)
 	memberlistConfig := buildMemberListConfig(c)
-	memberlistConfig.Name = s.localNode.Id
+	memberlistConfig.Name = s.node.Id
 	memberlistConfig.Ping = delegate
 	memberlistConfig.Delegate = delegate
 	memberlistConfig.Events = delegate

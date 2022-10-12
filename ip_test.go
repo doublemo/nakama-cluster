@@ -9,6 +9,7 @@ import (
 )
 
 func TestIp(t *testing.T) {
+	fmt.Println(1 << 20)
 	fmt.Println(addr.GetPrivateIP())
 	fmt.Println(addr.GetPublicIP())
 
@@ -17,8 +18,8 @@ func TestIp(t *testing.T) {
 		t.Fatal(err)
 	}
 	fmt.Println(v.NetIP(), v.IPPort())
-	fmt.Println(PublicIP())
-	fmt.Println(LocalIP())
+	// fmt.Println(PublicIP())
+	// fmt.Println(LocalIP())
 
 	weights := make(map[string]int)
 	weights["A"] = 1

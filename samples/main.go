@@ -12,7 +12,7 @@ import (
 	"time"
 
 	nakamacluster "github.com/doublemo/nakama-cluster"
-	"github.com/doublemo/nakama-cluster/pb"
+	"github.com/doublemo/nakama-cluster/api"
 	"github.com/doublemo/nakama-cluster/sd"
 	"github.com/uber-go/tally/v4"
 	"github.com/uber-go/tally/v4/prometheus"
@@ -48,7 +48,7 @@ func main() {
 	node := nakamacluster.Node{
 		Id:       "node-1",
 		Name:     "nakama",
-		Rpc:      "127.0.0.1:7953",
+		Rpc:      "127.0.0.1:7935",
 		Weight:   1,
 		Region:   "",
 		NodeType: 1,
@@ -73,14 +73,20 @@ func main() {
 	s := nakamacluster.NewServer(ctx, log, client, node, scope, *c)
 	log.Info("服务启动成功", zap.String("addr", c.Addr), zap.Int("port", c.Port))
 	go func() {
-		t := time.NewTicker(time.Second * 10)
+		t := time.NewTicker(time.Second * 1)
 		defer t.Stop()
 		for {
 			select {
 			case <-t.C:
 				data := make([]byte, 32)
 				binary.BigEndian.PutUint32(data, rand.Uint32())
-				msg := nakamacluster.NewBroadcast(&pb.Notify{Id: 0, Node: s.Node().Id, Payload: &pb.Notify_Message{Message: &pb.Nakama_Message{Body: []byte{0x1}}}})
+				msg := nakamacluster.NewBroadcast(&api.Envelope{
+					Id:   0,
+					Node: "",
+					Payload: &api.Envelope_Bytes{
+						Bytes: &api.Bytes{Content: []byte{0x1}},
+					},
+				})
 				s.Broadcast(*msg)
 			case <-ctx.Done():
 			}
@@ -102,7 +108,7 @@ func main() {
 		}
 	}()
 
-	s.OnNotifyMsg(func(msg *pb.Notify) {
+	s.OnNotifyMsg(func(msg *api.Envelope) {
 		log.Debug("收到广播信息", zap.Uint64("id", msg.Id), zap.String("node", msg.Node))
 	})
 

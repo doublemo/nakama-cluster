@@ -33,12 +33,12 @@ func (m *Metrics) SnapshotSentKbSec() float64 {
 	return m.snapshotSentKbSec.Load()
 }
 
-func (m *Metrics) NodeJoin() {
-	m.scope.Counter("node_count").Inc(1)
+func (m *Metrics) NodeJoin(value float64) {
+	m.scope.Gauge("node_count").Update(value)
 }
 
-func (m *Metrics) NodeLeave() {
-	m.scope.Counter("node_count").Inc(-1)
+func (m *Metrics) NodeLeave(value float64) {
+	m.scope.Gauge("node_count").Update(value)
 }
 
 func (m *Metrics) RecvBroadcast(recvBytes int64) {

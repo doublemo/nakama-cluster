@@ -4,7 +4,7 @@
 // - protoc             v3.21.5
 // source: cluster.proto
 
-package pb
+package api
 
 import (
 	context "context"
@@ -22,7 +22,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ApiServerClient interface {
-	Call(ctx context.Context, in *Api_Envelope, opts ...grpc.CallOption) (*Api_Envelope, error)
+	Call(ctx context.Context, in *Envelope, opts ...grpc.CallOption) (*Envelope, error)
 	Stream(ctx context.Context, opts ...grpc.CallOption) (ApiServer_StreamClient, error)
 }
 
@@ -34,9 +34,9 @@ func NewApiServerClient(cc grpc.ClientConnInterface) ApiServerClient {
 	return &apiServerClient{cc}
 }
 
-func (c *apiServerClient) Call(ctx context.Context, in *Api_Envelope, opts ...grpc.CallOption) (*Api_Envelope, error) {
-	out := new(Api_Envelope)
-	err := c.cc.Invoke(ctx, "/nakama.cluster.api.ApiServer/Call", in, out, opts...)
+func (c *apiServerClient) Call(ctx context.Context, in *Envelope, opts ...grpc.CallOption) (*Envelope, error) {
+	out := new(Envelope)
+	err := c.cc.Invoke(ctx, "/nakama.cluster.ApiServer/Call", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (c *apiServerClient) Call(ctx context.Context, in *Api_Envelope, opts ...gr
 }
 
 func (c *apiServerClient) Stream(ctx context.Context, opts ...grpc.CallOption) (ApiServer_StreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &ApiServer_ServiceDesc.Streams[0], "/nakama.cluster.api.ApiServer/Stream", opts...)
+	stream, err := c.cc.NewStream(ctx, &ApiServer_ServiceDesc.Streams[0], "/nakama.cluster.ApiServer/Stream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -53,8 +53,8 @@ func (c *apiServerClient) Stream(ctx context.Context, opts ...grpc.CallOption) (
 }
 
 type ApiServer_StreamClient interface {
-	Send(*Api_Envelope) error
-	Recv() (*Api_Envelope, error)
+	Send(*Envelope) error
+	Recv() (*Envelope, error)
 	grpc.ClientStream
 }
 
@@ -62,12 +62,12 @@ type apiServerStreamClient struct {
 	grpc.ClientStream
 }
 
-func (x *apiServerStreamClient) Send(m *Api_Envelope) error {
+func (x *apiServerStreamClient) Send(m *Envelope) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *apiServerStreamClient) Recv() (*Api_Envelope, error) {
-	m := new(Api_Envelope)
+func (x *apiServerStreamClient) Recv() (*Envelope, error) {
+	m := new(Envelope)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (x *apiServerStreamClient) Recv() (*Api_Envelope, error) {
 // All implementations must embed UnimplementedApiServerServer
 // for forward compatibility
 type ApiServerServer interface {
-	Call(context.Context, *Api_Envelope) (*Api_Envelope, error)
+	Call(context.Context, *Envelope) (*Envelope, error)
 	Stream(ApiServer_StreamServer) error
 	mustEmbedUnimplementedApiServerServer()
 }
@@ -87,7 +87,7 @@ type ApiServerServer interface {
 type UnimplementedApiServerServer struct {
 }
 
-func (UnimplementedApiServerServer) Call(context.Context, *Api_Envelope) (*Api_Envelope, error) {
+func (UnimplementedApiServerServer) Call(context.Context, *Envelope) (*Envelope, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Call not implemented")
 }
 func (UnimplementedApiServerServer) Stream(ApiServer_StreamServer) error {
@@ -107,7 +107,7 @@ func RegisterApiServerServer(s grpc.ServiceRegistrar, srv ApiServerServer) {
 }
 
 func _ApiServer_Call_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Api_Envelope)
+	in := new(Envelope)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -116,10 +116,10 @@ func _ApiServer_Call_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.cluster.api.ApiServer/Call",
+		FullMethod: "/nakama.cluster.ApiServer/Call",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServerServer).Call(ctx, req.(*Api_Envelope))
+		return srv.(ApiServerServer).Call(ctx, req.(*Envelope))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -129,8 +129,8 @@ func _ApiServer_Stream_Handler(srv interface{}, stream grpc.ServerStream) error 
 }
 
 type ApiServer_StreamServer interface {
-	Send(*Api_Envelope) error
-	Recv() (*Api_Envelope, error)
+	Send(*Envelope) error
+	Recv() (*Envelope, error)
 	grpc.ServerStream
 }
 
@@ -138,12 +138,12 @@ type apiServerStreamServer struct {
 	grpc.ServerStream
 }
 
-func (x *apiServerStreamServer) Send(m *Api_Envelope) error {
+func (x *apiServerStreamServer) Send(m *Envelope) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *apiServerStreamServer) Recv() (*Api_Envelope, error) {
-	m := new(Api_Envelope)
+func (x *apiServerStreamServer) Recv() (*Envelope, error) {
+	m := new(Envelope)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func (x *apiServerStreamServer) Recv() (*Api_Envelope, error) {
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ApiServer_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "nakama.cluster.api.ApiServer",
+	ServiceName: "nakama.cluster.ApiServer",
 	HandlerType: (*ApiServerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

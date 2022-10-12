@@ -1,4 +1,4 @@
-// Copyright (c) 2022 The Linna Authors.
+// Copyright 2020 The Nakama Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pb
+package rtapi
 
-//go:generate protoc -I. -I../vendor --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative cluster.proto
+//go:generate protoc -I.. -I. --go_out=. --go_opt=paths=source_relative realtime.proto

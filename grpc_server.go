@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/doublemo/nakama-cluster/pb"
+	"github.com/doublemo/nakama-cluster/api"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/shimingyah/pool"
 	"go.uber.org/zap"
@@ -35,24 +35,24 @@ type GrpcConfig struct {
 	Token   string `yaml:"token" json:"token" usage:"token"`
 }
 
-type GrpcHandler func(ctx context.Context, in *pb.Api_Envelope) (*pb.Api_Envelope, error)
-type GrpcStreamHandler func(ctx context.Context, in pb.ApiServer_StreamServer) error
+type GrpcHandler func(ctx context.Context, in *api.Envelope) (*api.Envelope, error)
+type GrpcStreamHandler func(ctx context.Context, in api.ApiServer_StreamServer) error
 
 type grpcServer struct {
-	pb.UnimplementedApiServerServer
+	api.UnimplementedApiServerServer
 	ctx           context.Context
 	handler       GrpcHandler
 	streamHandler GrpcStreamHandler
 }
 
-func (s *grpcServer) Call(ctx context.Context, in *pb.Api_Envelope) (*pb.Api_Envelope, error) {
+func (s *grpcServer) Call(ctx context.Context, in *api.Envelope) (*api.Envelope, error) {
 	if s.handler == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "method Call not implemented")
 	}
 	return s.handler(ctx, in)
 }
 
-func (s *grpcServer) Stream(in pb.ApiServer_StreamServer) error {
+func (s *grpcServer) Stream(in api.ApiServer_StreamServer) error {
 	if s.streamHandler == nil {
 		return status.Errorf(codes.InvalidArgument, "method Call not implemented")
 	}
@@ -93,7 +93,7 @@ func newGrpcServer(ctx context.Context, logger *zap.Logger, handler GrpcHandler,
 	}
 
 	s := grpc.NewServer(opts...)
-	pb.RegisterApiServerServer(s, &grpcServer{
+	api.RegisterApiServerServer(s, &grpcServer{
 		ctx:           ctx,
 		handler:       handler,
 		streamHandler: streamHandler,

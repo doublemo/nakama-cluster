@@ -17,7 +17,7 @@ func (s *Delegate) NotifyJoin(node *memberlist.Node) {
 	s.server.nakamaPeers.add(meta)
 	s.logger.Debug("NotifyJoin", zap.String("name", node.Name), zap.Int("node_num", s.server.nakamaPeers.Size()))
 	if s.server.metrics != nil {
-		s.server.metrics.NodeJoin()
+		s.server.metrics.NodeJoin(float64(s.server.nakamaPeers.Size()))
 	}
 }
 
@@ -27,7 +27,7 @@ func (s *Delegate) NotifyLeave(node *memberlist.Node) {
 	s.logger.Debug("NotifyLeave", zap.Any("node", node.Name), zap.Int("node_num", s.server.nakamaPeers.Size()))
 	s.server.nakamaPeers.delete(node.Name)
 	if s.server.metrics != nil {
-		s.server.metrics.NodeLeave()
+		s.server.metrics.NodeLeave(float64(s.server.nakamaPeers.Size()))
 	}
 }
 
