@@ -208,6 +208,18 @@ func (c *EtcdV3Client) Deregister(s Service) error {
 	return nil
 }
 
+func (c *EtcdV3Client) Update(s Service) error {
+	if s.Key == "" {
+		return ErrNoKey
+	}
+
+	if _, err := c.cli.Put(c.ctx, s.Key, s.Value, clientv3.WithLease(c.leaseID)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // close will close any open clients and call
 // the watcher cancel func
 func (c *EtcdV3Client) close() {

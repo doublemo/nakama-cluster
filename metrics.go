@@ -57,7 +57,7 @@ func (m *Metrics) PingMs(elapsed time.Duration) {
 	m.scope.Timer("overall_ping_ms").Record(elapsed)
 }
 
-func newMetrics(scope tally.Scope) *Metrics {
+func NewMetrics(scope tally.Scope) *Metrics {
 	ctx, cancelFn := context.WithCancel(context.Background())
 	m := &Metrics{
 		cancelFn:          cancelFn,

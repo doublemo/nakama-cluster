@@ -9,7 +9,6 @@ import (
 )
 
 func TestIp(t *testing.T) {
-	fmt.Println(1 << 20)
 	fmt.Println(addr.GetPrivateIP())
 	fmt.Println(addr.GetPublicIP())
 

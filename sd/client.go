@@ -32,6 +32,9 @@ type Client interface {
 	// Deregister a service with etcd.
 	Deregister(s Service) error
 
+	// Update a service with etcd.
+	Update(s Service) error
+
 	// LeaseID returns the lease id created for this service instance
 	LeaseID() int64
 }

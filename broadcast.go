@@ -15,7 +15,6 @@ type Broadcast struct {
 	name     string
 	payload  *api.Envelope
 	finished chan struct{}
-	to       []*Node
 }
 
 // Invalidates checks if enqueuing the current broadcast
@@ -55,15 +54,6 @@ func (b *Broadcast) Sended() bool {
 	return false
 }
 
-func (b *Broadcast) SetId(id uint64) {
-	b.id = id
-	b.payload.Id = id
-}
-
-func (b *Broadcast) SetNode(node string) {
-	b.payload.Node = node
-}
-
 // NamedBroadcast is an optional extension of the Broadcast interface that
 // gives each message a unique string name, and that is used to optimize
 //
@@ -87,12 +77,11 @@ func (b *Broadcast) Name() string {
 }
 
 // NewBroadcast 创建广播
-func NewBroadcast(payload *api.Envelope, to ...*Node) *Broadcast {
+func NewBroadcast(payload *api.Envelope) *Broadcast {
 	return &Broadcast{
 		id:       payload.Id,
 		name:     fmt.Sprint(payload.Id),
 		payload:  payload,
 		finished: make(chan struct{}),
-		to:       to,
 	}
 }
