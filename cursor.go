@@ -1,7 +1,6 @@
 package nakamacluster
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -26,9 +25,9 @@ func (c *MessageCursor) Fire(key string, value uint64) bool {
 		return true
 	}
 
-	// if value == lastId {
-	// 	return false
-	// }
+	if value == lastId {
+		return false
+	}
 
 	mod := int(value % uint64(c.cursorMapMaxByte))
 	if mod == 0 && loopId != value {
@@ -38,15 +37,14 @@ func (c *MessageCursor) Fire(key string, value uint64) bool {
 		c.Unlock()
 	}
 
-	//if value-lastId != 1 {
-	c.Lock()
-	ok := c.cursorMap[key][mod]
-	fmt.Println(lastId, c.cursorMap[key])
-	c.Unlock()
-	if ok == 0x1 {
-		return false
+	if value-lastId != 1 {
+		c.Lock()
+		ok := c.cursorMap[key][mod]
+		c.Unlock()
+		if ok == 0x1 {
+			return false
+		}
 	}
-	//}
 
 	c.Lock()
 	c.cursor[key] = value
