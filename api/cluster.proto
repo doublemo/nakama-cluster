@@ -15,12 +15,13 @@ service ApiServer{
 message Envelope {
     uint64 id = 1;
     string node = 2;
+    string cid = 3;
     oneof payload {
-        realtime.Envelope NakamaRtapi = 3;
-        Bytes bytes   = 4;
-        Error error = 5;
-        ProxyMessage  proxy =6;
-        UserStatus userStatus = 7;
+        realtime.Envelope NakamaRtapi = 4;
+        Bytes bytes   = 5;
+        Error error = 6;
+        ProxyMessage  proxy =7;
+        UserStatus userStatus = 8;
     }
 }
 

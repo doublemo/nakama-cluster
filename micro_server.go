@@ -58,7 +58,7 @@ func (s *MicroServer) Peers() Peer {
 	return s.peers
 }
 
-func (s *MicroServer) Delegate(delegate Delegate) {
+func (s *MicroServer) Delegate(delegate MircoDelegate) {
 	s.delegate.Store(delegate)
 }
 
@@ -263,9 +263,9 @@ func (s *MicroServer) metaNodesFromSD() ([]*NodeMeta, []string, error) {
 }
 
 // NewWithMicroServer
-func NewWithMicroServer(ctx context.Context, logger *zap.Logger, client sd.Client, id, name string, c Config) *MicroServer {
+func NewWithMicroServer(ctx context.Context, logger *zap.Logger, client sd.Client, id, name string, vars map[string]string, c Config) *MicroServer {
 	ctx, cancel := context.WithCancel(ctx)
-	meta := NewNodeMetaFromConfig(id, name, NODE_TYPE_MICROSERVICES, make(map[string]string), c)
+	meta := NewNodeMetaFromConfig(id, name, NODE_TYPE_MICROSERVICES, vars, c)
 
 	s := &MicroServer{
 		ctx:      ctx,
@@ -282,6 +282,8 @@ func NewWithMicroServer(ctx context.Context, logger *zap.Logger, client sd.Clien
 		config:   &c,
 		sdClient: client,
 	}
+
+	s.collectMicroNodes()
 	s.grpcServer = newGrpcServer(logger, s, c)
 	go s.serve()
 	return s

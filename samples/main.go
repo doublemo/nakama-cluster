@@ -108,7 +108,7 @@ func main() {
 		SanitizeOptions: &prometheus.DefaultSanitizerOpts,
 	}, time.Duration(5)*time.Second)
 
-	s := nakamacluster.NewWithNakamaServer(ctx, log, client, serverId, *c)
+	s := nakamacluster.NewWithNakamaServer(ctx, log, client, serverId, nil, *c)
 	s.Metrics(nakamacluster.NewMetrics(scope))
 	s.Delegate(&Delegate{logger: log, server: s})
 	log.Info("服务启动成功", zap.String("addr", c.Addr), zap.Int("port", c.Port))

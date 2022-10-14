@@ -93,6 +93,7 @@ func (s *NakamaServer) Stop() {
 	s.once.Do(func() {
 		if s.cancelFn != nil {
 			s.cancelFn()
+			s.memberlist.Leave(time.Second * 30)
 			s.memberlist.Shutdown()
 		}
 	})
@@ -117,7 +118,6 @@ func (s *NakamaServer) serve() {
 	s.sdClient.Register(sdService)
 	defer func() {
 		s.sdClient.Deregister(sdService)
-		s.memberlist.Leave(time.Second * 30)
 		s.logger.Info("Nakama cluster stoped")
 	}()
 
@@ -183,48 +183,48 @@ func (s *NakamaServer) send(id uint64, data *api.Envelope) {
 }
 
 func (s *NakamaServer) collectMicroNodes() {
-	nodes, _, err := s.metaNodesFromSD()
+	nodes, _, err := s.metaNodesFromSD(map[NodeType]bool{NODE_TYPE_MICROSERVICES: true})
 	if err != nil {
 		s.logger.Fatal("Failed reading meta nodes from sd", zap.Error(err))
 	}
 
 	for _, node := range nodes {
-		if node.Type == NODE_TYPE_NAKAMA {
-			continue
-		}
-
 		s.peers.Add(node)
 	}
 }
 
 // metaNodesFromSD 从服务发现中获取在线节点
-func (s *NakamaServer) metaNodesFromSD() ([]*NodeMeta, []string, error) {
+func (s *NakamaServer) metaNodesFromSD(nodeType map[NodeType]bool) ([]*NodeMeta, []string, error) {
 	values, err := s.sdClient.GetEntries(s.config.Prefix)
 	if err != nil {
 		s.logger.Warn("Failed reading meta nodes from sd", zap.Error(err))
 		return nil, nil, err
 	}
 
-	nodes := make([]*NodeMeta, len(values))
-	nodeAddrs := make([]string, len(values))
-	for k, v := range values {
+	nodes := make([]*NodeMeta, 0, len(values))
+	nodeAddrs := make([]string, 0, len(values))
+	for _, v := range values {
 		node := NewNodeMetaFromJSON([]byte(v))
 		if node == nil {
 			s.logger.Warn("Failed parse meta nodes from sd", zap.String("value", v))
 			return nil, nil, fmt.Errorf("Failed parse meta nodes from sd: %s", v)
 		}
 
-		nodes[k] = node
-		nodeAddrs[k] = node.Addr
+		if nodeType != nil && !nodeType[node.Type] {
+			continue
+		}
+
+		nodes = append(nodes, node)
+		nodeAddrs = append(nodeAddrs, node.Addr)
 	}
 	return nodes, nodeAddrs, nil
 }
 
 // NewWithNakamaServer 创建Nakama服务
-func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Client, id string, c Config) *NakamaServer {
+func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Client, id string, vars map[string]string, c Config) *NakamaServer {
 	var err error
 	ctx, cancel := context.WithCancel(ctx)
-	meta := NewNodeMetaFromConfig(id, "nakama", NODE_TYPE_NAKAMA, make(map[string]string), c)
+	meta := NewNodeMetaFromConfig(id, "nakama", NODE_TYPE_NAKAMA, vars, c)
 	addr := "0.0.0.0"
 	if c.Addr != "" {
 		addr = c.Addr
@@ -280,7 +280,7 @@ func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Clie
 		logger.Fatal("Failed to create memberlist", zap.Error(err))
 	}
 
-	_, nodes, err := s.metaNodesFromSD()
+	_, nodes, err := s.metaNodesFromSD(map[NodeType]bool{NODE_TYPE_NAKAMA: true})
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
