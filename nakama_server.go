@@ -93,6 +93,7 @@ func (s *NakamaServer) Stop() {
 	s.once.Do(func() {
 		if s.cancelFn != nil {
 			s.cancelFn()
+			s.memberlist.Shutdown()
 		}
 	})
 }
@@ -267,6 +268,13 @@ func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Clie
 		memberlistConfig.Logger.SetOutput(io.Discard)
 	}
 
+	s.messageQueue = &memberlist.TransmitLimitedQueue{
+		NumNodes: func() int {
+			return s.memberlist.NumMembers()
+		},
+
+		RetransmitMult: c.RetransmitMult,
+	}
 	s.memberlist, err = memberlist.Create(memberlistConfig)
 	if err != nil {
 		logger.Fatal("Failed to create memberlist", zap.Error(err))
@@ -275,14 +283,6 @@ func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Clie
 	_, nodes, err := s.metaNodesFromSD()
 	if err != nil {
 		logger.Fatal(err.Error())
-	}
-
-	s.messageQueue = &memberlist.TransmitLimitedQueue{
-		NumNodes: func() int {
-			return s.memberlist.NumMembers()
-		},
-
-		RetransmitMult: c.RetransmitMult,
 	}
 
 	if _, err := s.memberlist.Join(nodes); err != nil {
