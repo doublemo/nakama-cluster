@@ -122,6 +122,8 @@ func (s *NakamaServer) NotifyPingComplete(other *memberlist.Node, rtt time.Durat
 // NotifyJoin is invoked when a node is detected to have joined.
 // The Node argument must not be modified.
 func (s *NakamaServer) NotifyJoin(node *memberlist.Node) {
+	s.messageCur.Reset(node.Name)
+
 	if s.metrics != nil {
 		s.metrics.NodeJoin(1)
 	}
@@ -134,6 +136,8 @@ func (s *NakamaServer) NotifyJoin(node *memberlist.Node) {
 // NotifyLeave is invoked when a node is detected to have left.
 // The Node argument must not be modified.
 func (s *NakamaServer) NotifyLeave(node *memberlist.Node) {
+	s.messageCur.Remove(node.Name)
+
 	if s.metrics != nil {
 		s.metrics.NodeLeave(1)
 	}
