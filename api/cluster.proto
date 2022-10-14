@@ -24,6 +24,10 @@ message Envelope {
     }
 }
 
+message StateQueue {
+    repeated Envelope queue = 1;
+}
+
 message UserStatus {
     enum Action {
         Join = 0;

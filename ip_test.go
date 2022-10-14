@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/doublemo/nakama-cluster/api"
 	addr "github.com/hashicorp/go-sockaddr"
 	"github.com/serialx/hashring"
 )
@@ -35,4 +36,16 @@ func TestIp(t *testing.T) {
 	fmt.Println(ring.GetNode("B-0"))
 	fmt.Println(ring.GetNode("B-1"))
 	fmt.Println(ring.GetNode("f11e1c3c-0db2-48bc-a16d-c29dbf51dc19"))
+}
+
+func TestMessageQueue(t *testing.T) {
+	a := NewMessageQueue(10)
+	a.Push(&api.Envelope{Id: 1})
+	a.Push(&api.Envelope{Id: 2})
+	a.Push(&api.Envelope{Id: 3})
+
+	t.Log("count - >", a.Len())
+	fmt.Println(a.PopAll())
+	a.Push(&api.Envelope{Id: 4})
+	t.Log("count - >", a.Len(), a.Pop())
 }

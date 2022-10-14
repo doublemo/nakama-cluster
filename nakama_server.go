@@ -244,7 +244,7 @@ func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Clie
 		logger:     logger,
 		config:     &c,
 		incomingCh: make(chan *api.Envelope, c.BroadcastQueueSize),
-		messageCur: NewMessageCursor(1 << 20),
+		messageCur: NewMessageCursor(10),
 	}
 
 	memberlistConfig := memberlist.DefaultLocalConfig()
@@ -277,16 +277,16 @@ func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Clie
 		logger.Fatal(err.Error())
 	}
 
-	if _, err := s.memberlist.Join(nodes); err != nil {
-		logger.Fatal("Failed to join cluster", zap.Error(err))
-	}
-
 	s.messageQueue = &memberlist.TransmitLimitedQueue{
 		NumNodes: func() int {
 			return s.memberlist.NumMembers()
 		},
 
 		RetransmitMult: c.RetransmitMult,
+	}
+
+	if _, err := s.memberlist.Join(nodes); err != nil {
+		logger.Fatal("Failed to join cluster", zap.Error(err))
 	}
 
 	go s.serve()

@@ -23,17 +23,19 @@ import (
 
 type Delegate struct {
 	logger *zap.Logger
+	server *nakamacluster.NakamaServer
 }
 
 // LocalState 发送本地状态信息
 func (s *Delegate) LocalState(join bool) []byte {
 	s.logger.Info("Call LocalState", zap.Bool("join", join))
-	return nil
+	return []byte("dddddd-" + s.server.Node().Name)
 }
 
 // MergeRemoteState 发送本地状态信息
 func (s *Delegate) MergeRemoteState(buf []byte, join bool) {
 	s.logger.Info("Call MergeRemoteState", zap.Bool("join", join))
+	fmt.Println("----->", string(buf))
 }
 
 // NotifyJoin 接收节点加入通知
@@ -108,7 +110,7 @@ func main() {
 
 	s := nakamacluster.NewWithNakamaServer(ctx, log, client, serverId, *c)
 	s.Metrics(nakamacluster.NewMetrics(scope))
-	s.Delegate(&Delegate{logger: log})
+	s.Delegate(&Delegate{logger: log, server: s})
 	log.Info("服务启动成功", zap.String("addr", c.Addr), zap.Int("port", c.Port))
 	go func() {
 		t := time.NewTicker(time.Second * 1)
