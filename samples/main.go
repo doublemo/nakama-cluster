@@ -124,7 +124,7 @@ func main() {
 					Id:   0,
 					Node: "",
 					Payload: &api.Envelope_Bytes{
-						Bytes: &api.Bytes{Content: []byte{0x1}},
+						Bytes: []byte{0x1},
 					},
 				}
 				s.Send(msg)

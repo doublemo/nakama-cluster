@@ -79,6 +79,7 @@ func NewMetrics(scope tally.Scope) *Metrics {
 			select {
 			case <-ctx.Done():
 				return
+
 			case <-ticker.C:
 				reqCount := float64(m.currentReqCount.Swap(0))
 				recvBytes := float64(m.currentRecvBytes.Swap(0))

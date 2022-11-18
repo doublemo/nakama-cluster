@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package nakama.cluster;
+
+option go_package = "github.com/doublemo/nakama-cluster/api";
+
+// 微服务接口
+service ApiServer{
+    rpc Call(Envelope) returns(Envelope) {}
+    rpc Stream(stream Envelope) returns (stream Envelope) {}
+}
+
+message Envelope  {
+    uint64 id = 1;
+    string node = 2;
+    string cid = 3;
+    oneof payload {
+        bytes bytes  = 4;
+        Error error  = 5;
+    }
+}
+
+// error
+message Error {
+    // The error code which should be one of "Error.Code" enums.
+    int32 code = 1;
+    // A message in English to help developers debug the response.
+    string message = 2;
+    // Additional error details which may be different for each response.
+    map<string, string> context = 3;
+}
