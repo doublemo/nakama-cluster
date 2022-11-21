@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.21.5
-// source: nc_api.proto
+// source: nakama_cluster_api.proto
 
 package api
 
@@ -170,5 +170,5 @@ var ApiServer_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "nc_api.proto",
+	Metadata: "nakama_cluster_api.proto",
 }

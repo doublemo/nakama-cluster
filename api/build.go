@@ -14,4 +14,4 @@
 
 package api
 
-//go:generate protoc -I. -I../vendor -I../vendor/github.com/heroiclabs/nakama-common --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative nc_api.proto
+//go:generate protoc -I. -I../vendor -I../vendor/github.com/heroiclabs/nakama-common --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative nakama_cluster_api.proto
