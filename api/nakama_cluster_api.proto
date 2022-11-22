@@ -17,6 +17,9 @@ message Envelope  {
     oneof payload {
         bytes bytes  = 4;
         Error error  = 5;
+        Track track  = 6;
+        Untrack untrack = 7;
+        Message  Message = 8;
     }
 }
 
@@ -28,4 +31,54 @@ message Error {
     string message = 2;
     // Additional error details which may be different for each response.
     map<string, string> context = 3;
+}
+
+message Message{
+    repeated string sessionID = 1;
+    bytes   Content = 2;
+}
+
+message PresenceID {
+    string node = 1;
+    string sessionID = 2;
+}
+
+message PresenceStream {
+    int32 mode = 1;
+    string subject = 2;
+    string subcontext = 3;
+    string label = 4;
+}
+
+message PresenceMeta {
+    int32 sessionFormat = 1;
+    bool hidden = 2;
+    bool persistence = 3;
+    string username = 4;
+    string status = 5;
+    int32 reason = 6;
+}
+
+message Presence {
+    PresenceID id = 1;
+    PresenceStream stream = 2;
+    string userID = 3;
+    PresenceMeta meta = 4;
+}
+
+message Presences {
+    repeated Presence Presences = 1;
+}
+
+message Track {
+    repeated Presence Presences = 1;
+}
+
+message Untrack {
+    repeated Presence Presences = 1;
+}
+
+message UntrackAll {
+    string sessionID = 1;
+    int32 reason = 2;
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -207,7 +209,7 @@ func (s *NakamaServer) metaNodesFromSD(nodeType map[NodeType]bool) ([]*NodeMeta,
 		node := NewNodeMetaFromJSON([]byte(v))
 		if node == nil {
 			s.logger.Warn("Failed parse meta nodes from sd", zap.String("value", v))
-			return nil, nil, fmt.Errorf("Failed parse meta nodes from sd: %s", v)
+			continue
 		}
 
 		if nodeType != nil && !nodeType[node.Type] {
@@ -263,6 +265,7 @@ func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Clie
 	memberlistConfig.Delegate = s
 	memberlistConfig.Events = s
 	memberlistConfig.Alive = s
+	memberlistConfig.Logger = log.New(os.Stdout, "nakama-cluster", 0)
 
 	if !logger.Core().Enabled(zapcore.DebugLevel) {
 		memberlistConfig.Logger.SetOutput(io.Discard)
@@ -286,7 +289,7 @@ func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Clie
 	}
 
 	if _, err := s.memberlist.Join(nodes); err != nil {
-		logger.Fatal("Failed to join cluster", zap.Error(err))
+		logger.Warn("Failed to join cluster", zap.Error(err))
 	}
 
 	go s.serve()
