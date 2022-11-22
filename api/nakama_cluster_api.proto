@@ -19,7 +19,8 @@ message Envelope  {
         Error error  = 5;
         Track track  = 6;
         Untrack untrack = 7;
-        Message  Message = 8;
+        UntrackAll untrackAll = 8;
+        Message  message = 9;
     }
 }
 
