@@ -20,7 +20,9 @@ message Envelope  {
         Track track  = 6;
         Untrack untrack = 7;
         UntrackAll untrackAll = 8;
-        Message  message = 9;
+        UntrackByStream untrackByStream = 9;
+        UntrackByMode   untrackByMode = 10;
+        Message  message = 11;
     }
 }
 
@@ -82,4 +84,14 @@ message Untrack {
 message UntrackAll {
     string sessionID = 1;
     int32 reason = 2;
+}
+
+message UntrackByStream{
+    repeated PresenceStream streams = 1;
+}
+
+message UntrackByMode {
+    string sessionID = 1;
+    repeated int32 modes = 2;
+    PresenceStream skipStream = 3;
 }
