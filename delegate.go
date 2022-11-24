@@ -1,7 +1,6 @@
 package nakamacluster
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/doublemo/nakama-cluster/api"
@@ -69,7 +68,6 @@ func (s *NakamaServer) NotifyMsg(msg []byte) {
 
 	if frame.Direct == api.Frame_Reply {
 		m, ok := s.waitReplyMessages.Load(frame.Id)
-		fmt.Println("--Fire--", frame.Node, frame.SeqID, frame.Id, frame.Direct, m, ok)
 		if !ok {
 			return
 		}
@@ -91,7 +89,7 @@ func (s *NakamaServer) NotifyMsg(msg []byte) {
 	}
 
 	reply, err := fn.NotifyMsg(frame.Envelope)
-	if reply == nil && err == nil {
+	if reply == nil && err == nil || frame.Direct == api.Frame_Broadcast {
 		return
 	}
 

@@ -91,8 +91,9 @@ func main() {
 
 	c := nakamacluster.NewConfig()
 	c.Port = 10000 + rand.Intn(10000)
+	c.RetransmitMult = 5
 	c.Prefix = "/nk/samples/"
-	serverId := fmt.Sprintf("node-%d", 1)
+	serverId := fmt.Sprintf("node-%d", rand.Intn(10000))
 	vars := map[string]string{"weight": "1", "nakama-rpc": strconv.Itoa(c.Port)}
 	node := nakamacluster.NewNodeMetaFromConfig(serverId, "nakama", nakamacluster.NODE_TYPE_NAKAMA, vars, *c)
 	// Create Prometheus reporter and root scope.
@@ -115,19 +116,19 @@ func main() {
 	s.Delegate(&Delegate{logger: log, server: s})
 	log.Info("服务启动成功", zap.String("addr", c.Addr), zap.Int("port", c.Port))
 	go func() {
-		t := time.NewTicker(time.Second * 1)
+		t := time.NewTicker(time.Second * 10)
 		defer t.Stop()
 		for {
 			select {
 			case <-t.C:
 				data := make([]byte, 32)
 				binary.BigEndian.PutUint32(data, rand.Uint32())
-				fmt.Println(s.SendAndReply(nakamacluster.NewMessageWithReply(context.Background(), &api.Envelope{
+				s.Send(nakamacluster.NewMessage(&api.Envelope{
 					Cid: "1",
 					Payload: &api.Envelope_Bytes{
 						Bytes: []byte{0x1},
 					},
-				}, serverId)))
+				}))
 
 			case <-ctx.Done():
 			}
