@@ -253,7 +253,7 @@ func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Clie
 	memberlistConfig := memberlist.DefaultLocalConfig()
 	memberlistConfig.BindAddr = addr
 	memberlistConfig.BindPort = c.Port
-	memberlistConfig.PushPullInterval = time.Duration(c.ProbeInterval) * time.Second
+	memberlistConfig.PushPullInterval = time.Duration(c.PushPullInterval) * time.Second
 	memberlistConfig.GossipInterval = time.Duration(c.GossipInterval) * time.Millisecond
 	memberlistConfig.ProbeInterval = time.Duration(c.ProbeInterval) * time.Second
 	memberlistConfig.ProbeTimeout = time.Duration(c.ProbeTimeout) * time.Millisecond
