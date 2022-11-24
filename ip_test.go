@@ -40,12 +40,12 @@ func TestIp(t *testing.T) {
 
 func TestMessageQueue(t *testing.T) {
 	a := NewMessageQueue(10)
-	a.Push(&api.Envelope{Id: 1})
-	a.Push(&api.Envelope{Id: 2})
-	a.Push(&api.Envelope{Id: 3})
+	a.Push(&api.Envelope{Cid: "1"})
+	a.Push(&api.Envelope{Cid: "2"})
+	a.Push(&api.Envelope{Cid: "3"})
 
 	t.Log("count - >", a.Len())
 	fmt.Println(a.PopAll())
-	a.Push(&api.Envelope{Id: 4})
+	a.Push(&api.Envelope{Cid: "4"})
 	t.Log("count - >", a.Len(), a.Pop())
 }

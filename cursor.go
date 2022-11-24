@@ -2,6 +2,7 @@ package nakamacluster
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 // MessageCursor 信息游标
@@ -10,7 +11,13 @@ type MessageCursor struct {
 	cursorMap        map[string][]byte
 	cursorMapMaxByte int
 	cursorLoopId     uint64
+	nextVal          uint64
+
 	sync.RWMutex
+}
+
+func (c *MessageCursor) NextID() uint64 {
+	return atomic.AddUint64(&c.nextVal, 1)
 }
 
 func (c *MessageCursor) Fire(key string, value uint64) bool {

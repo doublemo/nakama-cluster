@@ -2,11 +2,11 @@ package nakamacluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,22 +18,28 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+var (
+	ErrMessageQueueFull    = errors.New("message incoming queue full")
+	ErrMessageNotWaitReply = errors.New("invalid message")
+)
+
 // NakamaServer Nakama服务
 type NakamaServer struct {
-	ctx          context.Context
-	cancelFn     context.CancelFunc
-	sdClient     sd.Client
-	meta         *NodeMeta
-	memberlist   *memberlist.Memberlist
-	peers        Peer
-	logger       *zap.Logger
-	config       *Config
-	incomingCh   chan *api.Envelope
-	metrics      *Metrics
-	messageQueue *memberlist.TransmitLimitedQueue
-	messageCur   *MessageCursor
-	delegate     atomic.Value
-	once         sync.Once
+	ctx               context.Context
+	cancelFn          context.CancelFunc
+	sdClient          sd.Client
+	meta              *NodeMeta
+	memberlist        *memberlist.Memberlist
+	peers             Peer
+	logger            *zap.Logger
+	config            *Config
+	incomingCh        chan *Message
+	metrics           *Metrics
+	messageQueue      *memberlist.TransmitLimitedQueue
+	messageCur        *MessageCursor
+	waitReplyMessages sync.Map
+	delegate          atomic.Value
+	once              sync.Once
 	sync.Mutex
 }
 
@@ -77,18 +83,32 @@ func (s *NakamaServer) UpdateMeta(status MetaStatus, vars map[string]string) {
 	}
 }
 
-func (s *NakamaServer) Send(msg *api.Envelope, to ...string) bool {
-	if len(to) > 0 {
-		msg.Node = strings.Join(to, ",")
+func (s *NakamaServer) Send(msg *Message, to ...string) error {
+	select {
+	case s.incomingCh <- msg:
+	default:
+		return ErrMessageQueueFull
+	}
+	return nil
+}
+
+func (s *NakamaServer) SendAndReply(msg *Message, to ...string) ([]*api.Envelope, error) {
+	if !msg.IsWaitReply() {
+		return nil, ErrMessageNotWaitReply
 	}
 
 	select {
 	case s.incomingCh <- msg:
 	default:
-		return false
+		return nil, ErrMessageQueueFull
 	}
 
-	return true
+	s.waitReplyMessages.Store(msg.ID().String(), msg)
+	defer func() {
+		s.waitReplyMessages.Delete(msg.ID().String())
+	}()
+
+	return msg.Wait()
 }
 
 func (s *NakamaServer) Stop() {
@@ -140,41 +160,54 @@ func (s *NakamaServer) serve() {
 			}
 
 			seqid++
-			s.send(seqid, data)
+			s.write(data)
 		}
 	}
 
 }
 
-func (s *NakamaServer) send(id uint64, data *api.Envelope) {
-	var nodes []*memberlist.Node
-	if data.Node != "" {
-		nodeids := strings.Split(data.Node, ",")
-		nodesMap := make(map[string]bool)
-		for _, v := range nodeids {
-			nodesMap[v] = true
-		}
-
-		for _, node := range s.Nodes() {
-			if nodesMap[node.Name] {
-				nodes = append(nodes, node)
-			}
-		}
+func (s *NakamaServer) write(message *Message) {
+	toLen := len(message.To())
+	frame := &api.Frame{
+		Id:       message.ID().String(),
+		Node:     s.Node().Name,
+		SeqID:    s.messageCur.NextID(),
+		Envelope: message.Payload(),
+		Direct:   api.Frame_Send,
 	}
 
-	msg := NewBroadcast(&api.Envelope{Id: id, Node: s.Node().Name, Payload: data.Payload})
-	msgBytes := msg.Message()
-	msgSize := int64(len(msgBytes))
-	if len(nodes) < 1 {
+	if toLen < 1 {
+		frame.Direct = api.Frame_Broadcast
+		msg := NewBroadcast(frame)
 		s.messageQueue.QueueBroadcast(msg)
-		if s.metrics != nil {
-			s.metrics.SentBroadcast(msgSize)
-		}
+		msgSize := int64(len(msg.Message()))
+		s.metrics.SentBroadcast(msgSize)
 		return
 	}
 
+	var nodes []*memberlist.Node
+	nodesMap := make(map[string]bool)
+	for _, v := range message.To() {
+		nodesMap[v] = true
+	}
+
+	for _, node := range s.Nodes() {
+		if nodesMap[node.Name] {
+			nodes = append(nodes, node)
+		}
+	}
+
+	if len(nodes) < 1 {
+		message.SendErr(errors.New("Cloud not find node"))
+		return
+	}
+
+	msg := NewBroadcast(frame)
+	msgBytes := msg.Message()
+	msgSize := int64(len(msgBytes))
 	for _, node := range nodes {
 		if err := s.memberlist.SendReliable(node, msgBytes); err != nil {
+			message.SendErr(err)
 			s.logger.Warn("Failed send message to node", zap.Error(err))
 		}
 
@@ -246,7 +279,7 @@ func NewWithNakamaServer(ctx context.Context, logger *zap.Logger, client sd.Clie
 		}),
 		logger:     logger,
 		config:     &c,
-		incomingCh: make(chan *api.Envelope, c.BroadcastQueueSize),
+		incomingCh: make(chan *Message, c.BroadcastQueueSize),
 		messageCur: NewMessageCursor(10),
 	}
 

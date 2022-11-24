@@ -1,6 +1,7 @@
 package nakamacluster
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/doublemo/nakama-cluster/api"
@@ -29,7 +30,7 @@ type Delegate interface {
 	NotifyAlive(node *NodeMeta) error
 
 	// NotifyMsg 接收节来至其它节点的信息
-	NotifyMsg(msg *api.Envelope)
+	NotifyMsg(msg *api.Envelope) (*api.Envelope, error)
 }
 
 // NodeMeta is used to retrieve meta-data about the current node
@@ -56,13 +57,31 @@ func (s *NakamaServer) NotifyMsg(msg []byte) {
 		s.metrics.RecvBroadcast(int64(len(msg)))
 	}
 
-	var envelope api.Envelope
-	if err := proto.Unmarshal(msg, &envelope); err != nil {
+	var frame api.Frame
+	if err := proto.Unmarshal(msg, &frame); err != nil {
 		s.logger.Warn("NotifyMsg parse failed", zap.Error(err))
 		return
 	}
 
-	if !s.messageCur.Fire(envelope.Node, envelope.Id) {
+	if !s.messageCur.Fire(frame.Node, frame.SeqID) {
+		return
+	}
+
+	if frame.Direct == api.Frame_Reply {
+		m, ok := s.waitReplyMessages.Load(frame.Id)
+		fmt.Println("--Fire--", frame.Node, frame.SeqID, frame.Id, frame.Direct, m, ok)
+		if !ok {
+			return
+		}
+
+		message, ok := m.(*Message)
+		if !ok {
+			return
+		}
+
+		if err := message.Send(frame.Envelope); err != nil {
+			s.logger.Warn("Failed send message to reply", zap.Error(err))
+		}
 		return
 	}
 
@@ -71,7 +90,45 @@ func (s *NakamaServer) NotifyMsg(msg []byte) {
 		return
 	}
 
-	fn.NotifyMsg(&envelope)
+	reply, err := fn.NotifyMsg(frame.Envelope)
+	if reply == nil && err == nil {
+		return
+	}
+
+	var node *memberlist.Node
+	for _, v := range s.Nodes() {
+		if v.Name == frame.Node {
+			node = v
+			break
+		}
+	}
+
+	if node == nil {
+		return
+	}
+
+	replyFrame := &api.Frame{
+		Id:     frame.Id,
+		Node:   s.Node().Name,
+		SeqID:  s.messageCur.NextID(),
+		Direct: api.Frame_Reply,
+	}
+
+	if err != nil {
+		replyFrame.Envelope = &api.Envelope{Payload: &api.Envelope_Error{
+			Error: &api.Error{
+				Code:    500,
+				Message: err.Error(),
+			},
+		}}
+	} else {
+		replyFrame.Envelope = reply
+	}
+
+	bytes, _ := proto.Marshal(replyFrame)
+	if err := s.memberlist.SendReliable(node, bytes); err != nil {
+		s.logger.Warn("Failed send message to node", zap.Error(err), zap.String("node", frame.Node))
+	}
 }
 
 // GetBroadcasts is called when user data messages can be broadcast.

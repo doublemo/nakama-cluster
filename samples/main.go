@@ -60,8 +60,9 @@ func (s *Delegate) NotifyAlive(node *nakamacluster.NodeMeta) error {
 }
 
 // NotifyMsg 接收节来至其它节点的信息
-func (s *Delegate) NotifyMsg(msg *api.Envelope) {
+func (s *Delegate) NotifyMsg(msg *api.Envelope) (*api.Envelope, error) {
 	s.logger.Info("Call NotifyMsg", zap.Any("msg", msg))
+	return msg, nil
 }
 
 func main() {
@@ -83,14 +84,15 @@ func main() {
 	log := zap.New(core, options...)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client, err := sd.NewEtcdV3Client(ctx, []string{"127.0.0.1:12379", "127.0.0.1:22379", "127.0.0.1:32379"}, sd.EtcdClientOptions{})
+	client, err := sd.NewEtcdV3Client(ctx, []string{"192.168.0.71:12379", "192.168.0.71:22379", "192.168.0.71:32379"}, sd.EtcdClientOptions{})
 	if err != nil {
 		log.Fatal("连接etcd失败", zap.Error(err))
 	}
 
 	c := nakamacluster.NewConfig()
 	c.Port = 10000 + rand.Intn(10000)
-	serverId := fmt.Sprintf("node-%d", rand.Intn(100000))
+	c.Prefix = "/nk/samples/"
+	serverId := fmt.Sprintf("node-%d", 1)
 	vars := map[string]string{"weight": "1", "nakama-rpc": strconv.Itoa(c.Port)}
 	node := nakamacluster.NewNodeMetaFromConfig(serverId, "nakama", nakamacluster.NODE_TYPE_NAKAMA, vars, *c)
 	// Create Prometheus reporter and root scope.
@@ -120,14 +122,12 @@ func main() {
 			case <-t.C:
 				data := make([]byte, 32)
 				binary.BigEndian.PutUint32(data, rand.Uint32())
-				msg := &api.Envelope{
-					Id:   0,
-					Node: "",
+				fmt.Println(s.SendAndReply(nakamacluster.NewMessageWithReply(context.Background(), &api.Envelope{
+					Cid: "1",
 					Payload: &api.Envelope_Bytes{
 						Bytes: []byte{0x1},
 					},
-				}
-				s.Send(msg)
+				}, serverId)))
 
 			case <-ctx.Done():
 			}
