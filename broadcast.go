@@ -10,7 +10,6 @@ import (
 )
 
 type Broadcast struct {
-	id       uint64
 	name     string
 	payload  *api.Frame
 	finished chan struct{}
@@ -78,7 +77,6 @@ func (b *Broadcast) Name() string {
 // NewBroadcast 创建广播
 func NewBroadcast(frame *api.Frame) *Broadcast {
 	return &Broadcast{
-		id:       frame.SeqID,
 		name:     frame.Id,
 		payload:  frame,
 		finished: make(chan struct{}),
