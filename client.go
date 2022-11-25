@@ -3,6 +3,7 @@ package nakamacluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/hashicorp/memberlist"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"google.golang.org/protobuf/proto"
 )
 
 const NAKAMA = "nakama"
@@ -22,6 +24,7 @@ const NAKAMA = "nakama"
 var (
 	ErrMessageQueueFull    = errors.New("message incoming queue full")
 	ErrMessageNotWaitReply = errors.New("invalid message")
+	ErrMessageSendFailed   = errors.New("failed message send to node")
 )
 
 type Client struct {
@@ -30,17 +33,43 @@ type Client struct {
 	config           *Config
 	incomingCh       chan *Message
 	peers            Peer
+	nodes            map[string]*memberlist.Node
 	memberlist       *memberlist.Memberlist
 	messageQueue     *memberlist.TransmitLimitedQueue
 	messageWaitQueue sync.Map
+	messageSeq       *MessageSeq
 	wathcer          *Watcher
+	meta             atomic.Value
 	delegate         atomic.Value
 	logger           *zap.Logger
 	once             sync.Once
+	sync.Mutex
 }
 
 func (s *Client) OnDelegate(delegate Delegate) {
 	s.delegate.Store(delegate)
+}
+
+func (s *Client) GetMeta() *Meta {
+	meta, ok := s.meta.Load().(*Meta)
+	if !ok || meta == nil {
+		return nil
+	}
+
+	return meta.Clone()
+}
+
+func (s *Client) GetLocalNode() *memberlist.Node {
+	return s.memberlist.LocalNode()
+}
+
+func (s *Client) UpdateMeta(status MetaStatus, vars map[string]string) error {
+	meta := s.GetMeta()
+	meta.Status = status
+	meta.Vars = vars
+	s.meta.Store(meta)
+
+	return s.memberlist.UpdateNode(time.Second * 30)
 }
 
 func (s *Client) GetNodesByNakama() []string {
@@ -102,12 +131,59 @@ func (s *Client) onUpdate(metas []*Meta) {
 func (s *Client) processIncoming() {
 	for {
 		select {
-		case frame, ok := <-s.incomingCh:
+		case message, ok := <-s.incomingCh:
 			if !ok {
 				return
 			}
 
-			_ = frame
+			toSize := len(message.To())
+			frame := api.Frame{
+				Id:       message.ID().String(),
+				Node:     s.GetLocalNode().Name,
+				Envelope: message.Payload(),
+				Direct:   api.Frame_Send,
+			}
+
+			if toSize < 1 {
+				frame.Direct = api.Frame_Broadcast
+				frame.SeqID = s.messageSeq.NextBroadcastID()
+			}
+
+			switch frame.Direct {
+			case api.Frame_Broadcast:
+				broadcast := NewBroadcast(&frame)
+				// to udp
+				s.messageQueue.QueueBroadcast(broadcast)
+
+				// stat
+
+			case api.Frame_Send:
+				for _, node := range message.To() {
+					s.Lock()
+					memberlistNode, ok := s.nodes[node]
+					s.Unlock()
+
+					if !ok || memberlistNode == nil {
+						message.SendErr(fmt.Errorf("could not send message to %s", node))
+						continue
+					}
+
+					frame.SeqID = s.messageSeq.NextID(node)
+					messageBytes, err := proto.Marshal(&frame)
+					if err != nil {
+						message.SendErr(err)
+						continue
+					}
+
+					if err := s.memberlist.SendReliable(memberlistNode, messageBytes); err != nil {
+						message.SendErr(err)
+						continue
+					}
+				}
+
+			default:
+				continue
+			}
 
 		case <-s.ctx.Done():
 			return
@@ -137,7 +213,11 @@ func NewClient(ctx context.Context, logger *zap.Logger, sdclient sd.Client, id s
 			Reuse:                config.GrpcPoolReuse,
 			MessageQueueSize:     config.MaxGossipPacketSize,
 		}),
+		messageSeq: NewMessageSeq(),
+		nodes:      make(map[string]*memberlist.Node),
 	}
+
+	s.meta.Store(meta)
 
 	memberlistConfig := memberlist.DefaultLocalConfig()
 	memberlistConfig.BindAddr = addr
@@ -150,10 +230,10 @@ func NewClient(ctx context.Context, logger *zap.Logger, sdclient sd.Client, id s
 	memberlistConfig.TCPTimeout = time.Duration(config.TCPTimeout) * time.Second
 	memberlistConfig.RetransmitMult = config.RetransmitMult
 	memberlistConfig.Name = id
-	// memberlistConfig.Ping = s
-	// memberlistConfig.Delegate = s
-	// memberlistConfig.Events = s
-	// memberlistConfig.Alive = s
+	memberlistConfig.Ping = s
+	memberlistConfig.Delegate = s
+	memberlistConfig.Events = s
+	memberlistConfig.Alive = s
 	memberlistConfig.Logger = log.New(os.Stdout, "nakama-cluster", 0)
 
 	if !logger.Core().Enabled(zapcore.DebugLevel) {

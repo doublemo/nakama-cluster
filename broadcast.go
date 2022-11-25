@@ -22,7 +22,8 @@ func (b *Broadcast) Invalidates(other memberlist.Broadcast) bool {
 	if !ok {
 		return false
 	}
-	return b.Name() == nb.Name()
+
+	return b.name == nb.Name()
 }
 
 // Returns a byte form of the message

@@ -54,6 +54,20 @@ func (s *Watcher) GetEntries() ([]*Meta, error) {
 	return metas, nil
 }
 
+func (s *Watcher) Update(meta *Meta) error {
+	metaValue, err := meta.Marshal()
+	if err != nil {
+		s.logger.Fatal("Failed marshal meta", zap.Error(err))
+	}
+
+	var service sd.Service
+	service.Key = fmt.Sprintf("%s/%s", s.prefix, meta.Id)
+	service.Value = string(metaValue)
+	service.TTL = sd.NewTTLOption(3*time.Second, 10*time.Second)
+
+	return s.sdClient.Update(service)
+}
+
 func (s *Watcher) watch(meta *Meta) {
 	metaValue, err := meta.Marshal()
 	if err != nil {
