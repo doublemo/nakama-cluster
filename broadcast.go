@@ -10,7 +10,6 @@ import (
 )
 
 type Broadcast struct {
-	id       uint64
 	name     string
 	payload  *api.Frame
 	finished chan struct{}
@@ -23,7 +22,8 @@ func (b *Broadcast) Invalidates(other memberlist.Broadcast) bool {
 	if !ok {
 		return false
 	}
-	return b.Name() == nb.Name()
+
+	return b.name == nb.Name()
 }
 
 // Returns a byte form of the message
@@ -78,7 +78,6 @@ func (b *Broadcast) Name() string {
 // NewBroadcast 创建广播
 func NewBroadcast(frame *api.Frame) *Broadcast {
 	return &Broadcast{
-		id:       frame.SeqID,
 		name:     frame.Id,
 		payload:  frame,
 		finished: make(chan struct{}),

@@ -23,13 +23,13 @@ import (
 
 type Delegate struct {
 	logger *zap.Logger
-	server *nakamacluster.NakamaServer
+	conn   *nakamacluster.Client
 }
 
 // LocalState 发送本地状态信息
 func (s *Delegate) LocalState(join bool) []byte {
 	s.logger.Info("Call LocalState", zap.Bool("join", join))
-	return []byte("dddddd-" + s.server.Node().Name)
+	return []byte("dddddd-" + s.conn.GetLocalNode().Name)
 }
 
 // MergeRemoteState 发送本地状态信息
@@ -39,22 +39,22 @@ func (s *Delegate) MergeRemoteState(buf []byte, join bool) {
 }
 
 // NotifyJoin 接收节点加入通知
-func (s *Delegate) NotifyJoin(node *nakamacluster.NodeMeta) {
+func (s *Delegate) NotifyJoin(node *nakamacluster.Meta) {
 	//s.logger.Info("Call NotifyJoin", zap.Any("meta", node))
 }
 
 // NotifyLeave 接收节点离线通知
-func (s *Delegate) NotifyLeave(node *nakamacluster.NodeMeta) {
+func (s *Delegate) NotifyLeave(node *nakamacluster.Meta) {
 	//s.logger.Info("Call NotifyLeave", zap.Any("meta", node))
 }
 
 // NotifyUpdate 接收节点更新通知
-func (s *Delegate) NotifyUpdate(node *nakamacluster.NodeMeta) {
+func (s *Delegate) NotifyUpdate(node *nakamacluster.Meta) {
 	s.logger.Info("Call NotifyUpdate", zap.Any("meta", node))
 }
 
 // NotifyAlive 接收节点活动通知
-func (s *Delegate) NotifyAlive(node *nakamacluster.NodeMeta) error {
+func (s *Delegate) NotifyAlive(node *nakamacluster.Meta) error {
 	//s.logger.Info("Call NotifyAlive", zap.Any("meta", node))
 	return nil
 }
@@ -62,7 +62,23 @@ func (s *Delegate) NotifyAlive(node *nakamacluster.NodeMeta) error {
 // NotifyMsg 接收节来至其它节点的信息
 func (s *Delegate) NotifyMsg(msg *api.Envelope) (*api.Envelope, error) {
 	s.logger.Info("Call NotifyMsg", zap.Any("msg", msg))
-	return msg, nil
+	return nil, nil
+}
+
+// Call rpc call
+func (s *Delegate) Call(ctx context.Context, in *api.Envelope) (*api.Envelope, error) {
+	s.logger.Info("Call", zap.String("CID", in.Cid))
+	return &api.Envelope{Cid: "22", Payload: &api.Envelope_Error{Error: &api.Error{Code: 500, Message: "dsdd"}}}, nil
+}
+
+// Stream rpc stream
+func (s *Delegate) Stream(ctx context.Context, client func(out *api.Envelope) bool, in *api.Envelope) error {
+	return nil
+}
+
+// OnStreamClose rpc stream close
+func (s *Delegate) OnStreamClose(ctx context.Context) {
+
 }
 
 func main() {
@@ -84,7 +100,7 @@ func main() {
 	log := zap.New(core, options...)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client, err := sd.NewEtcdV3Client(ctx, []string{"192.168.0.71:12379", "192.168.0.71:22379", "192.168.0.71:32379"}, sd.EtcdClientOptions{})
+	client, err := sd.NewEtcdV3Client(ctx, []string{"127.0.0.1:12379", "127.0.0.1:22379", "127.0.0.1:32379"}, sd.EtcdClientOptions{})
 	if err != nil {
 		log.Fatal("连接etcd失败", zap.Error(err))
 	}
@@ -111,9 +127,21 @@ func main() {
 		SanitizeOptions: &prometheus.DefaultSanitizerOpts,
 	}, time.Duration(5)*time.Second)
 
-	s := nakamacluster.NewWithNakamaServer(ctx, log, client, serverId, nil, *c)
-	s.Metrics(nakamacluster.NewMetrics(scope))
-	s.Delegate(&Delegate{logger: log, server: s})
+	_ = scope
+	s := nakamacluster.NewClient(ctx, log, client, serverId, nil, *c)
+	s.OnDelegate(&Delegate{logger: log, conn: s})
+
+	c2 := nakamacluster.NewConfig()
+	c2.Port = 10000 + rand.Intn(10000)
+	c2.RetransmitMult = 5
+	c2.Prefix = "/nk/samples/"
+	serverId2 := fmt.Sprintf("node-server-%d", rand.Intn(10000))
+	client2, err := sd.NewEtcdV3Client(ctx, []string{"127.0.0.1:12379", "127.0.0.1:22379", "127.0.0.1:32379"}, sd.EtcdClientOptions{})
+	if err != nil {
+		log.Fatal("连接etcd失败", zap.Error(err))
+	}
+	ss := nakamacluster.NewServer(ctx, log, client2, serverId2, "CC", vars, *c2)
+	ss.OnDelegate(&Delegate{logger: log, conn: s})
 	log.Info("服务启动成功", zap.String("addr", c.Addr), zap.Int("port", c.Port))
 	go func() {
 		t := time.NewTicker(time.Second * 10)
@@ -129,6 +157,9 @@ func main() {
 						Bytes: []byte{0x1},
 					},
 				}))
+
+				peer := ss.GetPeers()
+				fmt.Println(peer.Send(context.Background(), ss.GetMeta(), &api.Envelope{Cid: "555"}))
 
 			case <-ctx.Done():
 			}

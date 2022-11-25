@@ -1,16 +1,10 @@
-package nakamacluster
+package utils
 
 import (
 	"io/ioutil"
 	"net"
 	"net/http"
-
-	sockaddr "github.com/hashicorp/go-sockaddr"
 )
-
-func LocalIP() (string, error) {
-	return sockaddr.GetPrivateIP()
-}
 
 func OutboundIP() (string, error) {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
