@@ -38,6 +38,7 @@ type Client struct {
 	messageQueue     *memberlist.TransmitLimitedQueue
 	messageWaitQueue sync.Map
 	messageSeq       *MessageSeq
+	messageCursor    *MessageCursor
 	wathcer          *Watcher
 	meta             atomic.Value
 	delegate         atomic.Value
@@ -213,8 +214,9 @@ func NewClient(ctx context.Context, logger *zap.Logger, sdclient sd.Client, id s
 			Reuse:                config.GrpcPoolReuse,
 			MessageQueueSize:     config.MaxGossipPacketSize,
 		}),
-		messageSeq: NewMessageSeq(),
-		nodes:      make(map[string]*memberlist.Node),
+		messageSeq:    NewMessageSeq(),
+		messageCursor: NewMessageCursor(64),
+		nodes:         make(map[string]*memberlist.Node),
 	}
 
 	s.meta.Store(meta)

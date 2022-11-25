@@ -3,73 +3,75 @@ package nakamacluster
 import "sync"
 
 type MessageCursor struct {
-	cursor           map[string]uint64
-	cursorMap        map[string][]byte
-	cursorMapMaxByte int
-	cursorLoopID     uint64
-	sync.RWMutex
+	cursor     map[string]uint64
+	cursorMap  map[string][]byte
+	cursorLoop map[string]uint64
+	size       uint64
+	sync.Mutex
 }
 
-func (c *MessageCursor) Fire(key string, value uint64) bool {
-	c.RLock()
-	lastId := c.cursor[key]
-	loopId := c.cursorLoopID
-	_, found := c.cursorMap[key]
-	c.RUnlock()
+func (s *MessageCursor) Fire(k string, v uint64) bool {
+	s.Lock()
+	lastID := s.cursor[k]
+	loopID := s.cursorLoop[k]
+	_, found := s.cursorMap[k]
+	s.Unlock()
 
-	if !found {
-		c.Reset(key)
-		return true
-	}
-
-	if value == lastId {
+	if v == lastID {
 		return false
 	}
 
-	mod := int(value % uint64(c.cursorMapMaxByte))
-	if mod == 0 && loopId != value {
-		c.Lock()
-		c.cursorMap[key] = make([]byte, c.cursorMapMaxByte)
-		c.cursorLoopID = value
-		c.Unlock()
+	if !found {
+		s.Lock()
+		s.cursorMap[k] = make([]byte, s.size)
+		s.Unlock()
 	}
 
-	if value-lastId != 1 {
-		c.Lock()
-		ok := c.cursorMap[key][mod]
-		c.Unlock()
-		if ok == 0x1 {
+	mod := int(v % s.size)
+	if mod == 0 && loopID != v {
+		s.Lock()
+		s.cursorMap[k] = make([]byte, s.size)
+		s.cursorLoop[k] = v
+		s.Unlock()
+	}
+
+	if v-lastID != 1 {
+		s.Lock()
+		if s.cursorMap[k][mod] == 0x1 {
+			s.Unlock()
 			return false
 		}
+		s.Unlock()
 	}
 
-	c.Lock()
-	c.cursor[key] = value
-	c.cursorMap[key][mod] = 0x1
-	c.Unlock()
+	s.Lock()
+	s.cursor[k] = v
+	s.cursorMap[k][mod] = 0x1
+	s.Unlock()
 	return true
 }
 
-func (c *MessageCursor) Remove(key string) {
-	c.Lock()
-	delete(c.cursor, key)
-	delete(c.cursorMap, key)
-	c.Unlock()
+func (s *MessageCursor) Remove(k string) {
+	s.Lock()
+	delete(s.cursor, k)
+	delete(s.cursorMap, k)
+	delete(s.cursorLoop, k)
+	s.Unlock()
 }
 
-func (c *MessageCursor) Reset(key string) {
-	c.Lock()
-	c.cursor[key] = 0
-	c.cursorMap[key] = make([]byte, c.cursorMapMaxByte)
-	c.cursorLoopID = 0
-	c.Unlock()
+func (s *MessageCursor) Reset(k string) {
+	s.Lock()
+	s.cursor[k] = 0
+	s.cursorMap[k] = make([]byte, s.size)
+	s.cursorLoop[k] = 0
+	s.Unlock()
 }
 
-func NewMessageCursor(maxByte int) *MessageCursor {
+func NewMessageCursor(size int) *MessageCursor {
 	return &MessageCursor{
-		cursor:           make(map[string]uint64),
-		cursorMap:        make(map[string][]byte),
-		cursorMapMaxByte: maxByte,
-		cursorLoopID:     0,
+		cursor:     make(map[string]uint64),
+		cursorMap:  make(map[string][]byte),
+		cursorLoop: make(map[string]uint64),
+		size:       uint64(size),
 	}
 }

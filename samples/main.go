@@ -65,6 +65,22 @@ func (s *Delegate) NotifyMsg(msg *api.Envelope) (*api.Envelope, error) {
 	return nil, nil
 }
 
+// Call rpc call
+func (s *Delegate) Call(ctx context.Context, in *api.Envelope) (*api.Envelope, error) {
+	s.logger.Info("Call", zap.String("CID", in.Cid))
+	return &api.Envelope{Cid: "22", Payload: &api.Envelope_Error{Error: &api.Error{Code: 500, Message: "dsdd"}}}, nil
+}
+
+// Stream rpc stream
+func (s *Delegate) Stream(ctx context.Context, client func(out *api.Envelope) bool, in *api.Envelope) error {
+	return nil
+}
+
+// OnStreamClose rpc stream close
+func (s *Delegate) OnStreamClose(ctx context.Context) {
+
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	core := zapcore.NewCore(zapcore.NewJSONEncoder(zapcore.EncoderConfig{
@@ -115,6 +131,17 @@ func main() {
 	s := nakamacluster.NewClient(ctx, log, client, serverId, nil, *c)
 	s.OnDelegate(&Delegate{logger: log, conn: s})
 
+	c2 := nakamacluster.NewConfig()
+	c2.Port = 10000 + rand.Intn(10000)
+	c2.RetransmitMult = 5
+	c2.Prefix = "/nk/samples/"
+	serverId2 := fmt.Sprintf("node-server-%d", rand.Intn(10000))
+	client2, err := sd.NewEtcdV3Client(ctx, []string{"127.0.0.1:12379", "127.0.0.1:22379", "127.0.0.1:32379"}, sd.EtcdClientOptions{})
+	if err != nil {
+		log.Fatal("连接etcd失败", zap.Error(err))
+	}
+	ss := nakamacluster.NewServer(ctx, log, client2, serverId2, "CC", vars, *c2)
+	ss.OnDelegate(&Delegate{logger: log, conn: s})
 	log.Info("服务启动成功", zap.String("addr", c.Addr), zap.Int("port", c.Port))
 	go func() {
 		t := time.NewTicker(time.Second * 10)
@@ -130,6 +157,9 @@ func main() {
 						Bytes: []byte{0x1},
 					},
 				}))
+
+				peer := ss.GetPeers()
+				fmt.Println(peer.Send(context.Background(), ss.GetMeta(), &api.Envelope{Cid: "555"}))
 
 			case <-ctx.Done():
 			}

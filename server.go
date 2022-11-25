@@ -67,6 +67,10 @@ func (s *Server) OnDelegate(delegate ServerDelegate) {
 	s.delegate.Store(delegate)
 }
 
+func (s *Server) GetPeers() Peer {
+	return s.peers
+}
+
 func (s *Server) Call(ctx context.Context, in *api.Envelope) (*api.Envelope, error) {
 	fn, ok := s.delegate.Load().(ServerDelegate)
 	if !ok || fn == nil {
