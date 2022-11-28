@@ -29,7 +29,7 @@ type Delegate interface {
 	NotifyAlive(node *Meta) error
 
 	// NotifyMsg 接收节来至其它节点的信息
-	NotifyMsg(msg *api.Envelope) (*api.Envelope, error)
+	NotifyMsg(node string, msg *api.Envelope) (*api.Envelope, error)
 }
 
 // NodeMeta is used to retrieve meta-data about the current node
@@ -75,7 +75,7 @@ func (s *Client) NotifyMsg(msg []byte) {
 		return
 	}
 
-	reply, err := fn.NotifyMsg(frame.GetEnvelope())
+	reply, err := fn.NotifyMsg(frame.Node, frame.GetEnvelope())
 	if (reply == nil && err == nil) || frame.Direct == api.Frame_Broadcast {
 		return
 	}
