@@ -1273,6 +1273,61 @@ func (x *UntrackByMode) GetSkipStream() *PresenceStream {
 	return nil
 }
 
+type WPartyMatchmakerAdd struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Ticket    string        `protobuf:"bytes,1,opt,name=Ticket,proto3" json:"Ticket,omitempty"`
+	Presences []*PresenceID `protobuf:"bytes,2,rep,name=presences,proto3" json:"presences,omitempty"`
+}
+
+func (x *WPartyMatchmakerAdd) Reset() {
+	*x = WPartyMatchmakerAdd{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_nakama_cluster_api_proto_msgTypes[17]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *WPartyMatchmakerAdd) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WPartyMatchmakerAdd) ProtoMessage() {}
+
+func (x *WPartyMatchmakerAdd) ProtoReflect() protoreflect.Message {
+	mi := &file_nakama_cluster_api_proto_msgTypes[17]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WPartyMatchmakerAdd.ProtoReflect.Descriptor instead.
+func (*WPartyMatchmakerAdd) Descriptor() ([]byte, []int) {
+	return file_nakama_cluster_api_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *WPartyMatchmakerAdd) GetTicket() string {
+	if x != nil {
+		return x.Ticket
+	}
+	return ""
+}
+
+func (x *WPartyMatchmakerAdd) GetPresences() []*PresenceID {
+	if x != nil {
+		return x.Presences
+	}
+	return nil
+}
+
 var File_nakama_cluster_api_proto protoreflect.FileDescriptor
 
 var file_nakama_cluster_api_proto_rawDesc = []byte{
@@ -1439,19 +1494,26 @@ var file_nakama_cluster_api_proto_rawDesc = []byte{
 	0x0a, 0x73, 0x6b, 0x69, 0x70, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x18, 0x03, 0x20, 0x01, 0x28,
 	0x0b, 0x32, 0x1e, 0x2e, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74,
 	0x65, 0x72, 0x2e, 0x50, 0x72, 0x65, 0x73, 0x65, 0x6e, 0x63, 0x65, 0x53, 0x74, 0x72, 0x65, 0x61,
-	0x6d, 0x52, 0x0a, 0x73, 0x6b, 0x69, 0x70, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x32, 0x8d, 0x01,
-	0x0a, 0x09, 0x41, 0x70, 0x69, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x3c, 0x0a, 0x04, 0x43,
-	0x61, 0x6c, 0x6c, 0x12, 0x18, 0x2e, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75,
-	0x73, 0x74, 0x65, 0x72, 0x2e, 0x45, 0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x1a, 0x18, 0x2e,
-	0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x45,
-	0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x22, 0x00, 0x12, 0x42, 0x0a, 0x06, 0x53, 0x74, 0x72,
-	0x65, 0x61, 0x6d, 0x12, 0x18, 0x2e, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75,
-	0x73, 0x74, 0x65, 0x72, 0x2e, 0x45, 0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x1a, 0x18, 0x2e,
-	0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x45,
-	0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x22, 0x00, 0x28, 0x01, 0x30, 0x01, 0x42, 0x28, 0x5a,
-	0x26, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x64, 0x6f, 0x75, 0x62,
-	0x6c, 0x65, 0x6d, 0x6f, 0x2f, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2d, 0x63, 0x6c, 0x75, 0x73,
-	0x74, 0x65, 0x72, 0x2f, 0x61, 0x70, 0x69, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6d, 0x52, 0x0a, 0x73, 0x6b, 0x69, 0x70, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x22, 0x67, 0x0a,
+	0x13, 0x57, 0x50, 0x61, 0x72, 0x74, 0x79, 0x4d, 0x61, 0x74, 0x63, 0x68, 0x6d, 0x61, 0x6b, 0x65,
+	0x72, 0x41, 0x64, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x54, 0x69, 0x63, 0x6b, 0x65, 0x74, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x54, 0x69, 0x63, 0x6b, 0x65, 0x74, 0x12, 0x38, 0x0a, 0x09,
+	0x70, 0x72, 0x65, 0x73, 0x65, 0x6e, 0x63, 0x65, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x1a, 0x2e, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
+	0x2e, 0x50, 0x72, 0x65, 0x73, 0x65, 0x6e, 0x63, 0x65, 0x49, 0x44, 0x52, 0x09, 0x70, 0x72, 0x65,
+	0x73, 0x65, 0x6e, 0x63, 0x65, 0x73, 0x32, 0x8d, 0x01, 0x0a, 0x09, 0x41, 0x70, 0x69, 0x53, 0x65,
+	0x72, 0x76, 0x65, 0x72, 0x12, 0x3c, 0x0a, 0x04, 0x43, 0x61, 0x6c, 0x6c, 0x12, 0x18, 0x2e, 0x6e,
+	0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x45, 0x6e,
+	0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x1a, 0x18, 0x2e, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e,
+	0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x45, 0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65,
+	0x22, 0x00, 0x12, 0x42, 0x0a, 0x06, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x12, 0x18, 0x2e, 0x6e,
+	0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x45, 0x6e,
+	0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65, 0x1a, 0x18, 0x2e, 0x6e, 0x61, 0x6b, 0x61, 0x6d, 0x61, 0x2e,
+	0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2e, 0x45, 0x6e, 0x76, 0x65, 0x6c, 0x6f, 0x70, 0x65,
+	0x22, 0x00, 0x28, 0x01, 0x30, 0x01, 0x42, 0x28, 0x5a, 0x26, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
+	0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x64, 0x6f, 0x75, 0x62, 0x6c, 0x65, 0x6d, 0x6f, 0x2f, 0x6e, 0x61,
+	0x6b, 0x61, 0x6d, 0x61, 0x2d, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x2f, 0x61, 0x70, 0x69,
+	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1467,28 +1529,29 @@ func file_nakama_cluster_api_proto_rawDescGZIP() []byte {
 }
 
 var file_nakama_cluster_api_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_nakama_cluster_api_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_nakama_cluster_api_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_nakama_cluster_api_proto_goTypes = []interface{}{
-	(Frame_Direct)(0),       // 0: nakama.cluster.Frame.Direct
-	(*Frame)(nil),           // 1: nakama.cluster.Frame
-	(*Envelope)(nil),        // 2: nakama.cluster.Envelope
-	(*Error)(nil),           // 3: nakama.cluster.Error
-	(*Message)(nil),         // 4: nakama.cluster.Message
-	(*SessionNew)(nil),      // 5: nakama.cluster.SessionNew
-	(*SessionClose)(nil),    // 6: nakama.cluster.SessionClose
-	(*Sessions)(nil),        // 7: nakama.cluster.Sessions
-	(*PresenceID)(nil),      // 8: nakama.cluster.PresenceID
-	(*PresenceStream)(nil),  // 9: nakama.cluster.PresenceStream
-	(*PresenceMeta)(nil),    // 10: nakama.cluster.PresenceMeta
-	(*Presence)(nil),        // 11: nakama.cluster.Presence
-	(*Presences)(nil),       // 12: nakama.cluster.Presences
-	(*Track)(nil),           // 13: nakama.cluster.Track
-	(*Untrack)(nil),         // 14: nakama.cluster.Untrack
-	(*UntrackAll)(nil),      // 15: nakama.cluster.UntrackAll
-	(*UntrackByStream)(nil), // 16: nakama.cluster.UntrackByStream
-	(*UntrackByMode)(nil),   // 17: nakama.cluster.UntrackByMode
-	nil,                     // 18: nakama.cluster.Envelope.VarsEntry
-	nil,                     // 19: nakama.cluster.Error.ContextEntry
+	(Frame_Direct)(0),           // 0: nakama.cluster.Frame.Direct
+	(*Frame)(nil),               // 1: nakama.cluster.Frame
+	(*Envelope)(nil),            // 2: nakama.cluster.Envelope
+	(*Error)(nil),               // 3: nakama.cluster.Error
+	(*Message)(nil),             // 4: nakama.cluster.Message
+	(*SessionNew)(nil),          // 5: nakama.cluster.SessionNew
+	(*SessionClose)(nil),        // 6: nakama.cluster.SessionClose
+	(*Sessions)(nil),            // 7: nakama.cluster.Sessions
+	(*PresenceID)(nil),          // 8: nakama.cluster.PresenceID
+	(*PresenceStream)(nil),      // 9: nakama.cluster.PresenceStream
+	(*PresenceMeta)(nil),        // 10: nakama.cluster.PresenceMeta
+	(*Presence)(nil),            // 11: nakama.cluster.Presence
+	(*Presences)(nil),           // 12: nakama.cluster.Presences
+	(*Track)(nil),               // 13: nakama.cluster.Track
+	(*Untrack)(nil),             // 14: nakama.cluster.Untrack
+	(*UntrackAll)(nil),          // 15: nakama.cluster.UntrackAll
+	(*UntrackByStream)(nil),     // 16: nakama.cluster.UntrackByStream
+	(*UntrackByMode)(nil),       // 17: nakama.cluster.UntrackByMode
+	(*WPartyMatchmakerAdd)(nil), // 18: nakama.cluster.WPartyMatchmakerAdd
+	nil,                         // 19: nakama.cluster.Envelope.VarsEntry
+	nil,                         // 20: nakama.cluster.Error.ContextEntry
 }
 var file_nakama_cluster_api_proto_depIdxs = []int32{
 	2,  // 0: nakama.cluster.Frame.envelope:type_name -> nakama.cluster.Envelope
@@ -1502,8 +1565,8 @@ var file_nakama_cluster_api_proto_depIdxs = []int32{
 	4,  // 8: nakama.cluster.Envelope.message:type_name -> nakama.cluster.Message
 	5,  // 9: nakama.cluster.Envelope.sessionNew:type_name -> nakama.cluster.SessionNew
 	6,  // 10: nakama.cluster.Envelope.sessionClose:type_name -> nakama.cluster.SessionClose
-	18, // 11: nakama.cluster.Envelope.vars:type_name -> nakama.cluster.Envelope.VarsEntry
-	19, // 12: nakama.cluster.Error.context:type_name -> nakama.cluster.Error.ContextEntry
+	19, // 11: nakama.cluster.Envelope.vars:type_name -> nakama.cluster.Envelope.VarsEntry
+	20, // 12: nakama.cluster.Error.context:type_name -> nakama.cluster.Error.ContextEntry
 	5,  // 13: nakama.cluster.Sessions.sessions:type_name -> nakama.cluster.SessionNew
 	8,  // 14: nakama.cluster.Presence.id:type_name -> nakama.cluster.PresenceID
 	9,  // 15: nakama.cluster.Presence.stream:type_name -> nakama.cluster.PresenceStream
@@ -1513,15 +1576,16 @@ var file_nakama_cluster_api_proto_depIdxs = []int32{
 	11, // 19: nakama.cluster.Untrack.Presences:type_name -> nakama.cluster.Presence
 	9,  // 20: nakama.cluster.UntrackByStream.streams:type_name -> nakama.cluster.PresenceStream
 	9,  // 21: nakama.cluster.UntrackByMode.skipStream:type_name -> nakama.cluster.PresenceStream
-	2,  // 22: nakama.cluster.ApiServer.Call:input_type -> nakama.cluster.Envelope
-	2,  // 23: nakama.cluster.ApiServer.Stream:input_type -> nakama.cluster.Envelope
-	2,  // 24: nakama.cluster.ApiServer.Call:output_type -> nakama.cluster.Envelope
-	2,  // 25: nakama.cluster.ApiServer.Stream:output_type -> nakama.cluster.Envelope
-	24, // [24:26] is the sub-list for method output_type
-	22, // [22:24] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	8,  // 22: nakama.cluster.WPartyMatchmakerAdd.presences:type_name -> nakama.cluster.PresenceID
+	2,  // 23: nakama.cluster.ApiServer.Call:input_type -> nakama.cluster.Envelope
+	2,  // 24: nakama.cluster.ApiServer.Stream:input_type -> nakama.cluster.Envelope
+	2,  // 25: nakama.cluster.ApiServer.Call:output_type -> nakama.cluster.Envelope
+	2,  // 26: nakama.cluster.ApiServer.Stream:output_type -> nakama.cluster.Envelope
+	25, // [25:27] is the sub-list for method output_type
+	23, // [23:25] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_nakama_cluster_api_proto_init() }
@@ -1734,6 +1798,18 @@ func file_nakama_cluster_api_proto_init() {
 				return nil
 			}
 		}
+		file_nakama_cluster_api_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*WPartyMatchmakerAdd); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	file_nakama_cluster_api_proto_msgTypes[1].OneofWrappers = []interface{}{
 		(*Envelope_Bytes)(nil),
@@ -1753,7 +1829,7 @@ func file_nakama_cluster_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_nakama_cluster_api_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   19,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

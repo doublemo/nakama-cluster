@@ -130,3 +130,8 @@ message UntrackByMode {
     repeated int32 modes = 2;
     PresenceStream skipStream = 3;
 }
+
+message WPartyMatchmakerAdd {
+    string Ticket = 1;
+    repeated PresenceID presences = 2;
+}
