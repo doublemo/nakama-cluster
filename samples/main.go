@@ -60,7 +60,7 @@ func (s *Delegate) NotifyAlive(node *nakamacluster.Meta) error {
 }
 
 // NotifyMsg 接收节来至其它节点的信息
-func (s *Delegate) NotifyMsg(msg *api.Envelope) (*api.Envelope, error) {
+func (s *Delegate) NotifyMsg(node string, msg *api.Envelope) (*api.Envelope, error) {
 	s.logger.Info("Call NotifyMsg", zap.Any("msg", msg))
 	return nil, nil
 }
