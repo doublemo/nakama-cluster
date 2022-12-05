@@ -61,18 +61,17 @@ func NewNodeMeta(id, name, addr string, nodeType NodeType, vars map[string]strin
 
 // NewNodeMetaFromConfig 通过配置文件创建NodeMeta
 func NewNodeMetaFromConfig(id, name string, t NodeType, vars map[string]string, c Config) *Meta {
-	addr := c.Domain
-	if addr == "" {
-		ip, err := net.ResolveIPAddr("ip", c.Addr)
+	addr := ""
+	ip, err := net.ResolveIPAddr("ip", c.Addr)
+	if err == nil && c.Addr != "" || c.Addr != "0.0.0.0" {
+		addr = ip.String()
+	} else {
+		addr, err = sockaddr.GetPrivateIP()
 		if err != nil {
-			addr, err = sockaddr.GetPrivateIP()
-			if err != nil {
-				panic(err)
-			}
-		} else {
-			addr = ip.String()
+			panic(err)
 		}
 	}
 
+	vars["domain"] = c.Domain
 	return NewNodeMeta(id, name, fmt.Sprintf("%s:%d", addr, c.Port), t, vars)
 }
