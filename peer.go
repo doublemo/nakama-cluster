@@ -82,9 +82,15 @@ func (peer *LocalPeer) GetByName(name string) []*Meta {
 		return nodes
 	}
 
+	var n string
 	peer.RLock()
 	for _, node := range peer.nodes {
+		n = node.Name
 		peer.RUnlock()
+		if n != name {
+			continue
+		}
+
 		nodes = append(nodes, node.Clone())
 		peer.RLock()
 	}

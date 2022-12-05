@@ -63,7 +63,7 @@ func NewNodeMeta(id, name, addr string, nodeType NodeType, vars map[string]strin
 func NewNodeMetaFromConfig(id, name string, t NodeType, vars map[string]string, c Config) *Meta {
 	addr := ""
 	ip, err := net.ResolveIPAddr("ip", c.Addr)
-	if err == nil && c.Addr != "" || c.Addr != "0.0.0.0" {
+	if err == nil && c.Addr != "" && c.Addr != "0.0.0.0" {
 		addr = ip.String()
 	} else {
 		addr, err = sockaddr.GetPrivateIP()
