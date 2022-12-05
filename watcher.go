@@ -61,7 +61,7 @@ func (s *Watcher) Update(meta *Meta) error {
 	}
 
 	var service sd.Service
-	service.Key = fmt.Sprintf("%s/%s", s.prefix, meta.Id)
+	service.Key = fmt.Sprintf("%s%s", s.prefix, meta.Id)
 	service.Value = string(metaValue)
 	service.TTL = sd.NewTTLOption(3*time.Second, 10*time.Second)
 
@@ -75,7 +75,7 @@ func (s *Watcher) watch(meta *Meta) {
 	}
 
 	var service sd.Service
-	service.Key = fmt.Sprintf("%s/%s", s.prefix, meta.Id)
+	service.Key = fmt.Sprintf("%s%s", s.prefix, meta.Id)
 	service.Value = string(metaValue)
 	service.TTL = sd.NewTTLOption(3*time.Second, 10*time.Second)
 
