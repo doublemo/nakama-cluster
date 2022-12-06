@@ -251,7 +251,7 @@ func (peer *LocalPeer) Add(nodes ...*Meta) {
 		if _, ok := peer.rings[node.Name]; !ok {
 			peer.rings[node.Name] = hashring.NewWithWeights(map[string]int{node.Id: weight})
 		} else {
-			peer.rings[node.Name].AddWeightedNode(node.Id, weight)
+			peer.rings[node.Name] = peer.rings[node.Name].AddWeightedNode(node.Id, weight)
 		}
 		peer.nodesByName[node.Name]++
 	}
