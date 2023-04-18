@@ -35,17 +35,17 @@ func (s *Delegate) LocalState(join bool) []byte {
 // MergeRemoteState 发送本地状态信息
 func (s *Delegate) MergeRemoteState(buf []byte, join bool) {
 	s.logger.Info("Call MergeRemoteState", zap.Bool("join", join))
-	fmt.Println("----->", string(buf))
+	fmt.Println("--dd--->", string(buf))
 }
 
 // NotifyJoin 接收节点加入通知
 func (s *Delegate) NotifyJoin(node *nakamacluster.Meta) {
-	//s.logger.Info("Call NotifyJoin", zap.Any("meta", node))
+	s.logger.Info("Call NotifyJoin", zap.Any("meta", node))
 }
 
 // NotifyLeave 接收节点离线通知
 func (s *Delegate) NotifyLeave(node *nakamacluster.Meta) {
-	//s.logger.Info("Call NotifyLeave", zap.Any("meta", node))
+	s.logger.Info("Call NotifyLeave", zap.Any("meta", node))
 }
 
 // NotifyUpdate 接收节点更新通知
@@ -68,7 +68,7 @@ func (s *Delegate) NotifyMsg(node string, msg *api.Envelope) (*api.Envelope, err
 // Call rpc call
 func (s *Delegate) Call(ctx context.Context, in *api.Envelope) (*api.Envelope, error) {
 	s.logger.Info("Call", zap.String("CID", in.Cid))
-	return &api.Envelope{Cid: "22", Payload: &api.Envelope_Error{Error: &api.Error{Code: 500, Message: "dsdd"}}}, nil
+	return &api.Envelope{Cid: "22", Payload: &api.Envelope_Error{Error: &api.Error{Code: 500, Message: s.conn.GetLocalNode().Name}}}, nil
 }
 
 // Stream rpc stream
@@ -128,7 +128,7 @@ func main() {
 	}, time.Duration(5)*time.Second)
 
 	_ = scope
-	s := nakamacluster.NewClient(ctx, log, client, serverId, nil, *c)
+	s := nakamacluster.NewClient(ctx, log, client, serverId, make(map[string]string), *c)
 	s.OnDelegate(&Delegate{logger: log, conn: s})
 
 	c2 := nakamacluster.NewConfig()
@@ -159,7 +159,9 @@ func main() {
 				}))
 
 				peer := ss.GetPeers()
-				fmt.Println(peer.Send(context.Background(), ss.GetMeta(), &api.Envelope{Cid: "555"}))
+				peer.Send(context.Background(), ss.GetMeta(), &api.Envelope{Cid: "555"})
+				fmt.Println(peer.GetByName(nakamacluster.NAKAMA), peer.GetByName("CC"))
+				fmt.Println(peer.GetWithHashRing("CC", "dd"))
 
 			case <-ctx.Done():
 			}
@@ -175,13 +177,13 @@ func main() {
 	}
 
 	go func() {
-		log.Info("Starting Prometheus server for metrics requests", zap.Int("port", 1745))
+		log.Info("Starting Prometheus server for metrics requests", zap.String("Addr", hs.Addr))
 		if err := hs.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal("Prometheus listener failed", zap.Error(err))
 		}
 	}()
 
-	s.UpdateMeta(nakamacluster.META_STATUS_READYED, vars)
+	//s.UpdateMeta(nakamacluster.META_STATUS_READYED, vars)
 
 	sign := make(chan os.Signal, 1)
 	signal.Notify(sign, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)

@@ -107,7 +107,6 @@ func (s *Watcher) update() {
 	if err != nil {
 		return
 	}
-
 	handler(meta)
 }
 
