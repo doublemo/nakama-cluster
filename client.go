@@ -76,7 +76,7 @@ func (s *Client) UpdateMeta(status MetaStatus, vars map[string]string) error {
 
 func (s *Client) GetNodesByNakama() []string {
 	metas := s.peers.GetByName(NAKAMA)
-	nodes := make([]string, len(metas))
+	nodes := make([]string, 0, len(metas))
 	for _, meta := range metas {
 		nodes = append(nodes, meta.Addr)
 	}
@@ -141,13 +141,16 @@ func (s *Client) Stop() {
 }
 
 func (s *Client) onUpdate(metas []*Meta) {
+	newMetas := make([]*Meta, 0, len(metas))
 	for _, meta := range metas {
 		if meta.Type == NODE_TYPE_MICROSERVICES && meta.Name == NAKAMA {
 			s.logger.Warn("Invalid node name", zap.String("ID", meta.Id))
 			continue
 		}
-		s.peers.Add(meta)
+
+		newMetas = append(newMetas, meta)
 	}
+	s.peers.Sync(newMetas...)
 }
 
 func (s *Client) processIncoming() {
@@ -241,7 +244,6 @@ func NewClient(ctx context.Context, logger *zap.Logger, sdclient sd.Client, id s
 	}
 
 	s.meta.Store(meta)
-
 	memberlistConfig := memberlist.DefaultLocalConfig()
 	memberlistConfig.BindAddr = addr
 	memberlistConfig.BindPort = config.Port
@@ -282,7 +284,6 @@ func NewClient(ctx context.Context, logger *zap.Logger, sdclient sd.Client, id s
 	}
 	s.onUpdate(metas)
 	s.wathcer.OnUpdate(s.onUpdate)
-
 	if _, err := s.memberlist.Join(s.GetNodesByNakama()); err != nil {
 		logger.Warn("Failed to join cluster", zap.Error(err))
 	}

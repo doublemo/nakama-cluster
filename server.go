@@ -166,13 +166,15 @@ func (s *Server) UpdateMeta(status MetaStatus, vars map[string]string) error {
 }
 
 func (s *Server) onUpdate(metas []*Meta) {
+	nodes := make([]*Meta, 0, len(metas))
 	for _, meta := range metas {
 		if meta.Type == NODE_TYPE_MICROSERVICES && meta.Name == NAKAMA {
 			s.logger.Warn("Invalid node name", zap.String("ID", meta.Id))
 			continue
 		}
-		s.peers.Add(meta)
+		nodes = append(nodes, meta)
 	}
+	s.peers.Sync(nodes...)
 }
 
 func NewServer(ctx context.Context, logger *zap.Logger, sdclient sd.Client, id, name string, vars map[string]string, config Config) *Server {
@@ -274,7 +276,7 @@ func ensureValidToken(config Config) grpc.UnaryServerInterceptor {
 	}
 }
 
-//func(srv interface{}, ss ServerStream, info *StreamServerInfo, handler StreamHandler)
+// func(srv interface{}, ss ServerStream, info *StreamServerInfo, handler StreamHandler)
 func ensureStreamValidToken(config Config) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		md, ok := metadata.FromIncomingContext(ss.Context())

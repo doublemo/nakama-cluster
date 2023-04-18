@@ -22,9 +22,10 @@ type Peer interface {
 	Send(ctx context.Context, node *Meta, in *api.Envelope) (*api.Envelope, error)
 	SendStream(ctx context.Context, clientId string, node *Meta, in *api.Envelope, md metadata.MD) (created bool, ch chan *api.Envelope, err error)
 	GetWithHashRing(name, k string) (*Meta, bool)
-	Add(nodes ...*Meta)
+	Sync(nodes ...*Meta)
 	Update(id string, status MetaStatus)
 	Delete(id string)
+	Reset()
 }
 
 type PeerOptions struct {
@@ -81,11 +82,14 @@ func (peer *LocalPeer) GetByName(name string) []*Meta {
 	if size < 1 {
 		return nodes
 	}
-
+	var n string
 	peer.RLock()
 	for _, node := range peer.nodes {
+		n = node.Name
 		peer.RUnlock()
-		nodes = append(nodes, node.Clone())
+		if n == name {
+			nodes = append(nodes, node.Clone())
+		}
 		peer.RLock()
 	}
 	peer.RUnlock()
@@ -150,7 +154,7 @@ func (peer *LocalPeer) Send(ctx context.Context, node *Meta, in *api.Envelope) (
 
 func (peer *LocalPeer) SendStream(ctx context.Context, clientId string, node *Meta, in *api.Envelope, md metadata.MD) (created bool, ch chan *api.Envelope, err error) {
 	stream, ok := peer.grpcStreams.Load(clientId)
-	if ok {
+	if ok && stream != nil {
 		err = stream.(api.ApiServer_StreamClient).Send(in)
 		return
 	}
@@ -168,7 +172,6 @@ func (peer *LocalPeer) SendStream(ctx context.Context, clientId string, node *Me
 	defer conn.Close()
 
 	client := api.NewApiServerClient(conn.Value())
-
 	ctxStream, ok := peer.grpcStreamCancelFn.Load(node.Id)
 	if ok {
 		ctxS := ctxStream.(*streamContext)
@@ -206,6 +209,9 @@ func (peer *LocalPeer) SendStream(ctx context.Context, clientId string, node *Me
 		default:
 		}
 	}()
+
+	// store the client
+	peer.grpcStreams.Store(clientId, s)
 	return true, ch, s.Send(in)
 }
 
@@ -229,14 +235,16 @@ func (peer *LocalPeer) GetWithHashRing(name, k string) (*Meta, bool) {
 	return node, true
 }
 
-func (peer *LocalPeer) Add(nodes ...*Meta) {
-	peer.Lock()
-	defer peer.Unlock()
+func (peer *LocalPeer) Sync(nodes ...*Meta) {
+	nodeMap := make(map[string]bool, len(nodes))
+	newNodes := make(map[string]*Meta, len(nodes))
+	newRings := make(map[string]*hashring.HashRing)
+	newNodesByName := make(map[string]int)
 	var weight int
 	for _, node := range nodes {
-		peer.nodes[node.Id] = node
+		newNodes[node.Id] = node
+		nodeMap[node.Id] = true
 		weight = 1
-
 		if v, ok := node.Vars["weight"]; ok {
 			weight, _ = strconv.Atoi(v)
 			if weight < 1 {
@@ -244,13 +252,55 @@ func (peer *LocalPeer) Add(nodes ...*Meta) {
 			}
 		}
 
-		if _, ok := peer.rings[node.Name]; !ok {
-			peer.rings[node.Name] = hashring.NewWithWeights(map[string]int{node.Id: weight})
+		if _, ok := newRings[node.Name]; !ok {
+			newRings[node.Name] = hashring.NewWithWeights(map[string]int{node.Id: weight})
 		} else {
-			peer.rings[node.Name].AddWeightedNode(node.Id, weight)
+			newRings[node.Name] = newRings[node.Name].AddWeightedNode(node.Id, weight)
 		}
-		peer.nodesByName[node.Name]++
+		newNodesByName[node.Name]++
 	}
+
+	peer.Lock()
+	for k := range peer.nodes {
+		peer.Unlock()
+		if !nodeMap[k] {
+			if m, ok := peer.grpcPool.Load(k); ok && m != nil {
+				m.(pool.Pool).Close()
+				peer.grpcPool.Delete(k)
+			}
+
+			if m, ok := peer.grpcStreamCancelFn.Load(k); ok && m != nil {
+				m.(*streamContext).cancel()
+				peer.grpcStreamCancelFn.Delete(k)
+			}
+		}
+		peer.Lock()
+	}
+	peer.nodes = newNodes
+	peer.rings = newRings
+	peer.nodesByName = newNodesByName
+	peer.Unlock()
+}
+
+func (peer *LocalPeer) Reset() {
+	peer.Lock()
+	peer.rings = make(map[string]*hashring.HashRing)
+	peer.nodes = make(map[string]*Meta)
+	peer.nodesByName = make(map[string]int)
+	peer.Unlock()
+	peer.grpcPool.Range(func(key, value any) bool {
+		if v, ok := peer.grpcPool.LoadAndDelete(key); ok && v != nil {
+			v.(pool.Pool).Close()
+		}
+		return true
+	})
+
+	peer.grpcStreamCancelFn.Range(func(key, value any) bool {
+		if v, ok := peer.grpcStreamCancelFn.LoadAndDelete(key); ok && v != nil {
+			v.(*streamContext).cancel()
+		}
+		return true
+	})
 }
 
 func (peer *LocalPeer) Delete(id string) {
