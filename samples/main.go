@@ -14,7 +14,7 @@ import (
 
 	nakamacluster "github.com/doublemo/nakama-cluster"
 	"github.com/doublemo/nakama-cluster/api"
-	"github.com/doublemo/nakama-cluster/sd"
+	"github.com/doublemo/nakama-cluster/sd/etcdv3"
 	"github.com/uber-go/tally/v4"
 	"github.com/uber-go/tally/v4/prometheus"
 	"go.uber.org/zap"
@@ -60,15 +60,15 @@ func (s *Delegate) NotifyAlive(node *nakamacluster.Meta) error {
 }
 
 // NotifyMsg 接收节来至其它节点的信息
-func (s *Delegate) NotifyMsg(node string, msg *api.Envelope) (*api.Envelope, error) {
-	s.logger.Info("Call NotifyMsg", zap.Any("msg", msg))
-	return nil, nil
+func (s *Delegate) NotifyMsg(node string, msg []byte) []byte {
+	s.logger.Info("Call NotifyMsg", zap.String("msg", string(msg)))
+	return nil
 }
 
 // Call rpc call
 func (s *Delegate) Call(ctx context.Context, in *api.Envelope) (*api.Envelope, error) {
-	s.logger.Info("Call", zap.String("CID", in.Cid))
-	return &api.Envelope{Cid: "22", Payload: &api.Envelope_Error{Error: &api.Error{Code: 500, Message: s.conn.GetLocalNode().Name}}}, nil
+	s.logger.Info("Call", zap.String("CID", in.Cid.String()))
+	return &api.Envelope{Cid: api.Message_ZERO, Payload: &api.Envelope_Error{Error: &api.Error{Code: 500, Message: s.conn.GetLocalNode().Name}}}, nil
 }
 
 // Stream rpc stream
@@ -100,7 +100,7 @@ func main() {
 	log := zap.New(core, options...)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client, err := sd.NewEtcdV3Client(ctx, []string{"127.0.0.1:12379", "127.0.0.1:22379", "127.0.0.1:32379"}, sd.EtcdClientOptions{})
+	client, err := etcdv3.NewClient(ctx, []string{"192.168.0.71:12379", "192.168.0.71:22379", "192.168.0.71:32379"}, etcdv3.ClientOptions{})
 	if err != nil {
 		log.Fatal("连接etcd失败", zap.Error(err))
 	}
@@ -136,7 +136,7 @@ func main() {
 	c2.RetransmitMult = 5
 	c2.Prefix = "/nk/samples/"
 	serverId2 := fmt.Sprintf("node-server-%d", rand.Intn(10000))
-	client2, err := sd.NewEtcdV3Client(ctx, []string{"127.0.0.1:12379", "127.0.0.1:22379", "127.0.0.1:32379"}, sd.EtcdClientOptions{})
+	client2, err := etcdv3.NewClient(ctx, []string{"192.168.0.71:12379", "192.168.0.71:22379", "192.168.0.71:32379"}, etcdv3.ClientOptions{})
 	if err != nil {
 		log.Fatal("连接etcd失败", zap.Error(err))
 	}
@@ -151,17 +151,10 @@ func main() {
 			case <-t.C:
 				data := make([]byte, 32)
 				binary.BigEndian.PutUint32(data, rand.Uint32())
-				s.Send(nakamacluster.NewMessage(&api.Envelope{
-					Cid: "1",
-					Payload: &api.Envelope_Bytes{
-						Bytes: []byte{0x1},
-					},
-				}))
+				s.Send(nakamacluster.NewMessage([]byte("1919")))
 
-				peer := ss.GetPeers()
-				peer.Send(context.Background(), ss.GetMeta(), &api.Envelope{Cid: "555"})
-				fmt.Println(peer.GetByName(nakamacluster.NAKAMA), peer.GetByName("CC"))
-				fmt.Println(peer.GetWithHashRing("CC", "dd"))
+				res, err := ss.Rpc(context.Background(), "CC", &api.Envelope{Cid: api.Message_ZERO})
+				fmt.Println("---send zero---", res, err)
 
 			case <-ctx.Done():
 			}

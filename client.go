@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/doublemo/nakama-cluster/api"
+	"github.com/doublemo/nakama-cluster/endpoint"
 	"github.com/doublemo/nakama-cluster/sd"
+	"github.com/doublemo/nakama-cluster/sd/etcdv3"
+	sockaddr "github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/memberlist"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -32,6 +36,9 @@ type Client struct {
 	ctx              context.Context
 	cancelFn         context.CancelFunc
 	config           *Config
+	registrar        sd.Registrar
+	instancer        sd.Instancer
+	endpointer       *sd.DefaultEndpointer
 	incomingCh       chan *Message
 	peers            Peer
 	nodes            map[string]*memberlist.Node
@@ -40,8 +47,7 @@ type Client struct {
 	messageWaitQueue sync.Map
 	messageSeq       *MessageSeq
 	messageCursor    *MessageCursor
-	wathcer          *Watcher
-	meta             atomic.Value
+	endpoint         endpoint.Endpoint
 	delegate         atomic.Value
 	logger           *zap.Logger
 	once             sync.Once
@@ -52,35 +58,19 @@ func (s *Client) OnDelegate(delegate Delegate) {
 	s.delegate.Store(delegate)
 }
 
-func (s *Client) GetMeta() *Meta {
-	meta, ok := s.meta.Load().(*Meta)
-	if !ok || meta == nil {
-		return nil
-	}
-
-	return meta.Clone()
+func (s *Client) Endpoint() endpoint.Endpoint {
+	return s.endpoint
 }
 
 func (s *Client) GetLocalNode() *memberlist.Node {
 	return s.memberlist.LocalNode()
 }
 
-func (s *Client) UpdateMeta(status MetaStatus, vars map[string]string) error {
-	meta := s.GetMeta()
-	meta.Status = status
-	meta.Vars = vars
-	s.meta.Store(meta)
-
-	return s.memberlist.UpdateNode(time.Second * 30)
-}
-
-func (s *Client) GetNodesByNakama() []string {
-	metas := s.peers.GetByName(NAKAMA)
-	nodes := make([]string, 0, len(metas))
-	for _, meta := range metas {
-		nodes = append(nodes, meta.Addr)
+func (s *Client) UpdateMeta(vars map[string]string) error {
+	for k, v := range vars {
+		s.endpoint.SetVar(k, v)
 	}
-	return nodes
+	return s.memberlist.UpdateNode(time.Second * 30)
 }
 
 func (s *Client) Broadcast(msg *Message) error {
@@ -92,7 +82,7 @@ func (s *Client) Broadcast(msg *Message) error {
 	return nil
 }
 
-func (s *Client) Send(msg *Message, to ...string) ([]*api.Envelope, error) {
+func (s *Client) Send(msg *Message, to ...string) ([][]byte, error) {
 	select {
 	case s.incomingCh <- msg:
 	default:
@@ -111,46 +101,19 @@ func (s *Client) Send(msg *Message, to ...string) ([]*api.Envelope, error) {
 	return msg.Wait()
 }
 
-func (s *Client) RPCCall(ctx context.Context, name, key, cid string, vars map[string]string, in []byte) ([]byte, error) {
-	node, ok := s.peers.GetWithHashRing(name, key)
-	if !ok {
-		return nil, ErrNodeNotFound
-	}
-
-	request := &api.Envelope{
-		Cid:     cid,
-		Payload: &api.Envelope_Bytes{Bytes: in},
-		Vars:    vars,
-	}
-
-	out, err := s.peers.Send(ctx, node, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return out.GetBytes(), nil
+func (s *Client) Rpc(ctx context.Context, serviceName string, in *api.Envelope) (*api.Envelope, error) {
+	return s.peers.Do(ctx, serviceName, in)
 }
 
 func (s *Client) Stop() {
 	s.once.Do(func() {
 		if s.cancelFn != nil {
-			s.wathcer.Stop()
+			s.endpointer.Close()
+			s.instancer.Stop()
+			s.registrar.Deregister()
 			s.cancelFn()
 		}
 	})
-}
-
-func (s *Client) onUpdate(metas []*Meta) {
-	newMetas := make([]*Meta, 0, len(metas))
-	for _, meta := range metas {
-		if meta.Type == NODE_TYPE_MICROSERVICES && meta.Name == NAKAMA {
-			s.logger.Warn("Invalid node name", zap.String("ID", meta.Id))
-			continue
-		}
-
-		newMetas = append(newMetas, meta)
-	}
-	s.peers.Sync(newMetas...)
 }
 
 func (s *Client) processIncoming() {
@@ -163,10 +126,10 @@ func (s *Client) processIncoming() {
 
 			toSize := len(message.To())
 			frame := api.Frame{
-				Id:       message.ID().String(),
-				Node:     s.GetLocalNode().Name,
-				Envelope: message.Payload(),
-				Direct:   api.Frame_Send,
+				Id:     message.ID().String(),
+				Node:   s.GetLocalNode().Name,
+				Bytes:  message.Payload(),
+				Direct: api.Frame_Send,
 			}
 
 			if toSize < 1 {
@@ -216,34 +179,43 @@ func (s *Client) processIncoming() {
 	}
 }
 
-func NewClient(ctx context.Context, logger *zap.Logger, sdclient sd.Client, id string, vars map[string]string, config Config) *Client {
+func NewClient(ctx context.Context, logger *zap.Logger, sdclient etcdv3.Client, id string, vars map[string]string, config Config) *Client {
 	var err error
 	ctx, cancel := context.WithCancel(ctx)
-	meta := NewNodeMetaFromConfig(id, NAKAMA, NODE_TYPE_NAKAMA, vars, config)
+	local, err := NewNakaMaEndpoint(id, vars, config)
+	if err != nil {
+		logger.Panic("Failed to NewNakaMaEndpoint", zap.Error(err))
+	}
+
 	addr := "0.0.0.0"
 	if config.Addr != "" {
 		addr = config.Addr
 	}
 
 	s := &Client{
-		ctx:        ctx,
-		cancelFn:   cancel,
-		logger:     logger,
-		config:     &config,
-		incomingCh: make(chan *Message, config.BroadcastQueueSize),
-		peers: NewPeer(ctx, logger, PeerOptions{
-			MaxIdle:              config.GrpcPoolMaxIdle,
-			MaxActive:            config.GrpcPoolMaxActive,
-			MaxConcurrentStreams: config.GrpcPoolMaxConcurrentStreams,
-			Reuse:                config.GrpcPoolReuse,
-			MessageQueueSize:     config.MaxGossipPacketSize,
-		}),
+		ctx:           ctx,
+		cancelFn:      cancel,
+		logger:        logger,
+		config:        &config,
+		incomingCh:    make(chan *Message, config.BroadcastQueueSize),
+		peers:         NewLocalPeer(ctx, logger, sdclient, &config),
 		messageSeq:    NewMessageSeq(),
 		messageCursor: NewMessageCursor(64),
 		nodes:         make(map[string]*memberlist.Node),
+		registrar: etcdv3.NewRegistrar(sdclient, etcdv3.Service{
+			Key:   config.Prefix + local.Name() + "/" + local.ID(),
+			Value: local.String(),
+		}, logger),
+		endpoint: local,
 	}
 
-	s.meta.Store(meta)
+	s.registrar.Register()
+	instancer, err := etcdv3.NewInstancer(sdclient, config.Prefix+local.Name(), logger)
+	if err != nil {
+		s.registrar.Deregister()
+		logger.Panic("Failed to etcdv3.NewInstancer", zap.Error(err))
+	}
+	s.instancer = instancer
 	memberlistConfig := memberlist.DefaultLocalConfig()
 	memberlistConfig.BindAddr = addr
 	memberlistConfig.BindPort = config.Port
@@ -274,20 +246,49 @@ func NewClient(ctx context.Context, logger *zap.Logger, sdclient sd.Client, id s
 	}
 	s.memberlist, err = memberlist.Create(memberlistConfig)
 	if err != nil {
-		logger.Fatal("Failed to create memberlist", zap.Error(err))
+		logger.Panic("Failed to create memberlist", zap.Error(err))
 	}
 
-	s.wathcer = NewWatcher(ctx, logger, sdclient, config.Prefix, meta)
-	metas, err := s.wathcer.GetEntries()
+	s.endpointer = sd.NewEndpointer(instancer, func(instance string) (endpoint.Endpoint, io.Closer, error) {
+		node := endpoint.New("", "", "", nil, func(ctx context.Context, request interface{}) (response interface{}, err error) {
+			return nil, nil
+		})
+		node.FromString(instance)
+		return node, nil, nil
+	}, logger)
+
+	endpoints, err := s.endpointer.Endpoints()
 	if err != nil {
-		logger.Fatal(err.Error())
-	}
-	s.onUpdate(metas)
-	s.wathcer.OnUpdate(s.onUpdate)
-	if _, err := s.memberlist.Join(s.GetNodesByNakama()); err != nil {
-		logger.Warn("Failed to join cluster", zap.Error(err))
+		logger.Panic("endpointer.Endpoints", zap.Error(err))
 	}
 
+	members := make([]string, len(endpoints))
+	for k, v := range endpoints {
+		members[k] = v.Address()
+	}
+
+	n, err := s.memberlist.Join(members)
+	if err != nil {
+		logger.Panic("Failed to join cluster", zap.Error(err))
+	}
+
+	logger.Info("Successed to join cluster", zap.Int("number", n))
 	go s.processIncoming()
 	return s
+}
+
+func NewNakaMaEndpoint(id string, vars map[string]string, config Config) (endpoint.Endpoint, error) {
+	addr := ""
+	ip, err := net.ResolveIPAddr("ip", config.Addr)
+	if err == nil && config.Addr != "" && config.Addr != "0.0.0.0" {
+		addr = ip.String()
+	} else {
+		addr, err = sockaddr.GetPrivateIP()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	vars["domian"] = config.Domain
+	return endpoint.New(id, NAKAMA, fmt.Sprintf("%s:%d", addr, config.Port), vars, nil), nil
 }

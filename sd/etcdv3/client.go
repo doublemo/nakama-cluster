@@ -1,8 +1,9 @@
-package sd
+package etcdv3
 
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"time"
 
 	"go.etcd.io/etcd/client/pkg/v3/transport"
@@ -10,7 +11,41 @@ import (
 	"google.golang.org/grpc"
 )
 
-type EtcdV3Client struct {
+var (
+	// ErrNoKey indicates a client method needs a key but receives none.
+	ErrNoKey = errors.New("no key provided")
+
+	// ErrNoValue indicates a client method needs a value but receives none.
+	ErrNoValue = errors.New("no value provided")
+)
+
+// Client is a wrapper around the etcd client.
+type Client interface {
+	// GetEntries queries the given prefix in etcd and returns a slice
+	// containing the values of all keys found, recursively, underneath that
+	// prefix.
+	GetEntries(prefix string) ([]string, error)
+
+	// WatchPrefix watches the given prefix in etcd for changes. When a change
+	// is detected, it will signal on the passed channel. Clients are expected
+	// to call GetEntries to update themselves with the latest set of complete
+	// values. WatchPrefix will always send an initial sentinel value on the
+	// channel after establishing the watch, to ensure that clients always
+	// receive the latest set of values. WatchPrefix will block until the
+	// context passed to the NewClient constructor is terminated.
+	WatchPrefix(prefix string, ch chan struct{})
+
+	// Register a service with etcd.
+	Register(s Service) error
+
+	// Deregister a service with etcd.
+	Deregister(s Service) error
+
+	// LeaseID returns the lease id created for this service instance
+	LeaseID() int64
+}
+
+type client struct {
 	cli *clientv3.Client
 	ctx context.Context
 
@@ -33,7 +68,7 @@ type EtcdV3Client struct {
 
 // ClientOptions defines options for the etcd client. All values are optional.
 // If any duration is not specified, a default of 3 seconds will be used.
-type EtcdClientOptions struct {
+type ClientOptions struct {
 	Cert          string
 	Key           string
 	CACert        string
@@ -49,9 +84,9 @@ type EtcdClientOptions struct {
 	Password string
 }
 
-// NewEtcdV3Client returns Client with a connection to the named machines. It will
+// NewClient returns Client with a connection to the named machines. It will
 // return an error if a connection to the cluster cannot be made.
-func NewEtcdV3Client(ctx context.Context, machines []string, options EtcdClientOptions) (Client, error) {
+func NewClient(ctx context.Context, machines []string, options ClientOptions) (Client, error) {
 	if options.DialTimeout == 0 {
 		options.DialTimeout = 3 * time.Second
 	}
@@ -88,17 +123,17 @@ func NewEtcdV3Client(ctx context.Context, machines []string, options EtcdClientO
 		return nil, err
 	}
 
-	return &EtcdV3Client{
+	return &client{
 		cli: cli,
 		ctx: ctx,
 		kv:  clientv3.NewKV(cli),
 	}, nil
 }
 
-func (c *EtcdV3Client) LeaseID() int64 { return int64(c.leaseID) }
+func (c *client) LeaseID() int64 { return int64(c.leaseID) }
 
 // GetEntries implements the etcd Client interface.
-func (c *EtcdV3Client) GetEntries(key string) ([]string, error) {
+func (c *client) GetEntries(key string) ([]string, error) {
 	resp, err := c.kv.Get(c.ctx, key, clientv3.WithPrefix())
 	if err != nil {
 		return nil, err
@@ -113,7 +148,7 @@ func (c *EtcdV3Client) GetEntries(key string) ([]string, error) {
 }
 
 // WatchPrefix implements the etcd Client interface.
-func (c *EtcdV3Client) WatchPrefix(prefix string, ch chan struct{}) {
+func (c *client) WatchPrefix(prefix string, ch chan struct{}) {
 	c.wctx, c.wcf = context.WithCancel(c.ctx)
 	c.watcher = clientv3.NewWatcher(c.cli)
 
@@ -127,7 +162,7 @@ func (c *EtcdV3Client) WatchPrefix(prefix string, ch chan struct{}) {
 	}
 }
 
-func (c *EtcdV3Client) Register(s Service) error {
+func (c *client) Register(s Service) error {
 	var err error
 
 	if s.Key == "" {
@@ -159,6 +194,7 @@ func (c *EtcdV3Client) Register(s Service) error {
 		return err
 	}
 	c.leaseID = grantResp.ID
+
 	_, err = c.kv.Put(
 		c.ctx,
 		s.Key,
@@ -195,7 +231,7 @@ func (c *EtcdV3Client) Register(s Service) error {
 	return nil
 }
 
-func (c *EtcdV3Client) Deregister(s Service) error {
+func (c *client) Deregister(s Service) error {
 	defer c.close()
 
 	if s.Key == "" {
@@ -208,21 +244,9 @@ func (c *EtcdV3Client) Deregister(s Service) error {
 	return nil
 }
 
-func (c *EtcdV3Client) Update(s Service) error {
-	if s.Key == "" {
-		return ErrNoKey
-	}
-
-	if _, err := c.cli.Put(c.ctx, s.Key, s.Value, clientv3.WithLease(c.leaseID)); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // close will close any open clients and call
 // the watcher cancel func
-func (c *EtcdV3Client) close() {
+func (c *client) close() {
 	if c.leaser != nil {
 		c.leaser.Close()
 	}

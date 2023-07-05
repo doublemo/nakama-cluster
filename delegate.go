@@ -29,25 +29,14 @@ type Delegate interface {
 	NotifyAlive(node *Meta) error
 
 	// NotifyMsg 接收节来至其它节点的信息
-	NotifyMsg(node string, msg *api.Envelope) (*api.Envelope, error)
+	NotifyMsg(node string, msg []byte) []byte
 }
 
 // NodeMeta is used to retrieve meta-data about the current node
 // when broadcasting an alive message. It's length is limited to
 // the given byte size. This metadata is available in the Node structure.
 func (s *Client) NodeMeta(limit int) []byte {
-	meta := s.GetMeta()
-	if meta == nil {
-		return nil
-	}
-
-	metaBytes, err := meta.Marshal()
-	if err != nil {
-		s.logger.Warn("Failed marshal meta", zap.Error(err))
-		return nil
-	}
-
-	return metaBytes
+	return []byte(s.endpoint.String())
 }
 
 // NotifyMsg is called when a user-data message is received.
@@ -75,12 +64,12 @@ func (s *Client) NotifyMsg(msg []byte) {
 		return
 	}
 
-	reply, err := fn.NotifyMsg(frame.Node, frame.GetEnvelope())
-	if (reply == nil && err == nil) || frame.Direct == api.Frame_Broadcast {
+	reply := fn.NotifyMsg(frame.Node, frame.Bytes)
+	if reply == nil || frame.Direct == api.Frame_Broadcast {
 		return
 	}
 
-	s.sendReplyMessage(&frame, reply, err)
+	s.sendReplyMessage(&frame, reply)
 }
 
 // GetBroadcasts is called when user data messages can be broadcast.
@@ -182,30 +171,20 @@ func (s *Client) recvReplyMessage(frame *api.Frame) {
 		return
 	}
 
-	if err := message.Send(frame.GetEnvelope()); err != nil {
+	if err := message.Send(frame.Bytes); err != nil {
 		s.logger.Warn("Failed send message to reply", zap.Error(err))
 		message.SendErr(err)
 		return
 	}
 }
 
-func (s *Client) sendReplyMessage(frame *api.Frame, reply *api.Envelope, err error) {
+func (s *Client) sendReplyMessage(frame *api.Frame, reply []byte) {
 	replyFrame := api.Frame{
 		Id:     frame.Id,
 		Node:   s.GetLocalNode().Name,
 		SeqID:  s.messageSeq.NextID(frame.Node),
 		Direct: api.Frame_Reply,
-	}
-
-	if err != nil {
-		replyFrame.Envelope = &api.Envelope{Payload: &api.Envelope_Error{
-			Error: &api.Error{
-				Code:    500,
-				Message: err.Error(),
-			},
-		}}
-	} else {
-		replyFrame.Envelope = reply
+		Bytes:  reply,
 	}
 
 	bytes, _ := proto.Marshal(&replyFrame)

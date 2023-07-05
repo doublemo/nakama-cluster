@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/doublemo/nakama-cluster/api"
 	"github.com/gofrs/uuid"
 )
 
@@ -13,8 +12,8 @@ type Message struct {
 	ctx         context.Context
 	ctxCancelFn context.CancelFunc
 	to          []string
-	payload     *api.Envelope
-	replyChan   chan *api.Envelope
+	payload     []byte
+	replyChan   chan []byte
 	errChan     chan error
 }
 
@@ -26,13 +25,13 @@ func (m *Message) To() []string {
 	return m.to
 }
 
-func (m *Message) Payload() *api.Envelope {
+func (m *Message) Payload() []byte {
 	return m.payload
 }
 
-func (m *Message) Wait() ([]*api.Envelope, error) {
+func (m *Message) Wait() ([][]byte, error) {
 	messageCounter := len(m.to)
-	envelope := make([]*api.Envelope, messageCounter)
+	envelope := make([][]byte, messageCounter)
 	i := 0
 	for {
 		if messageCounter <= 0 {
@@ -69,7 +68,7 @@ func (m *Message) IsWaitReply() bool {
 	return m.replyChan != nil
 }
 
-func (m *Message) Send(envelope *api.Envelope) error {
+func (m *Message) Send(envelope []byte) error {
 	select {
 	case m.replyChan <- envelope:
 	default:
@@ -89,10 +88,10 @@ func (m *Message) SendErr(err error) error {
 	return nil
 }
 
-func NewMessageWithReply(ctx context.Context, envelope *api.Envelope, to ...string) *Message {
+func NewMessageWithReply(ctx context.Context, data []byte, to ...string) *Message {
 	toLen := len(to)
 	if toLen < 1 {
-		return NewMessage(envelope)
+		return NewMessage(data)
 	}
 
 	tonodes := make([]string, 0, toLen)
@@ -109,8 +108,8 @@ func NewMessageWithReply(ctx context.Context, envelope *api.Envelope, to ...stri
 	m := &Message{
 		id:        uuid.Must(uuid.NewV4()),
 		to:        tonodes,
-		payload:   envelope,
-		replyChan: make(chan *api.Envelope, 1),
+		payload:   data,
+		replyChan: make(chan []byte, 1),
 		errChan:   make(chan error),
 	}
 
@@ -118,11 +117,11 @@ func NewMessageWithReply(ctx context.Context, envelope *api.Envelope, to ...stri
 	return m
 }
 
-func NewMessage(envelope *api.Envelope, to ...string) *Message {
+func NewMessage(msg []byte, to ...string) *Message {
 	m := &Message{
 		id:        uuid.Must(uuid.NewV4()),
 		to:        to,
-		payload:   envelope,
+		payload:   msg,
 		replyChan: nil,
 	}
 

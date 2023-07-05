@@ -4,6 +4,8 @@ package nakama.cluster;
 
 option go_package = "github.com/doublemo/nakama-cluster/api";
 
+
+
 // 微服务接口
 service ApiServer{
     rpc Call(Envelope) returns(Envelope) {}
@@ -20,25 +22,17 @@ message Frame{
     string id    = 1;
     uint64 seqID = 2;
     string node = 3;
-    Envelope envelope = 4;
+    bytes bytes = 4;
     Direct direct = 5;
 }
 
 message Envelope  {
-    string cid = 1;
+    Message.MsgID cid = 1;
     oneof payload {
         bytes bytes  = 2;
         Error error  = 3;
-        Track track  = 4;
-        Untrack untrack = 5;
-        UntrackAll untrackAll = 6;
-        UntrackByStream untrackByStream = 7;
-        UntrackByMode   untrackByMode = 8;
-        Message  message = 9;
-        SessionNew sessionNew = 10;
-        SessionClose sessionClose = 11;
     }
-    map<string, string> vars = 12;
+    map<string, string> vars = 4;
 }
 
 // error
@@ -51,117 +45,30 @@ message Error {
     map<string, string> context = 3;
 }
 
-message Message{
-    repeated string sessionID = 1;
-    bytes   Content = 2;
-}
+message Message {
+    enum MsgID {
+        ZERO = 0;
+        SESSIONSTART = 1;
+        SESSIONEND = 2;
+    }
 
-message SessionNew{
-    string sessionID = 1;
-    string userID = 2;
-    string username = 3;
-    int32 format = 4;
-    bool hidden = 5;
-}
-
-message SessionClose{
-    string sessionID = 1;
-    string userID = 2;
-    int32 reason = 3;
-    repeated bytes messages = 4;
-}
-
-message Sessions{
-    string node = 1;
-    repeated SessionNew sessions = 2;
-}
-
-message PresenceID {
-    string node = 1;
-    string sessionID = 2;
-}
-
-message PresenceStream {
-    int32 mode = 1;
-    string subject = 2;
-    string subcontext = 3;
-    string label = 4;
-}
-
-message PresenceMeta {
-    int32 sessionFormat = 1;
-    bool hidden = 2;
-    bool persistence = 3;
-    string username = 4;
-    string status = 5;
-    int32 reason = 6;
-}
-
-message Presence {
-    PresenceID id = 1;
-    PresenceStream stream = 2;
-    string userID = 3;
-    PresenceMeta meta = 4;
-}
-
-message Presences {
-    repeated Presence Presences = 1;
-}
-
-message Track {
-    repeated Presence Presences = 1;
-}
-
-message Untrack {
-    repeated Presence Presences = 1;
-}
-
-message UntrackAll {
-    string sessionID = 1;
-    int32 reason = 2;
-}
-
-message UntrackByStream{
-    repeated PresenceStream streams = 1;
-}
-
-message UntrackByMode {
-    string sessionID = 1;
-    repeated int32 modes = 2;
-    PresenceStream skipStream = 3;
-}
-
-message WPartyMatchmakerAdd {
-    string Ticket = 1;
-    repeated PresenceID presences = 2;
-}
-
-message RMatchJoinAttempt{
-    string id = 1;
-    string userID = 2;
-    string sessionID = 3;
-    string username = 4;
-    int64 sessionExpiry = 5;
-    map<string, string> vars = 6;
-    string clientIP = 7; 
-    string clientPort = 8;
-    string fromNode = 9;
-    map<string, string> metadata = 10;
-}
-
-message WMatchJoinAttempt{
-    bool found = 1;
-    bool allow = 2;
-    bool isNew = 3;
-    string reason = 4;
-    string label = 5;
-    repeated MatchPresence matchPresences = 6;
-}
-
-message MatchPresence {
-    string node = 1;
-    string userID = 2;
-    string sessionID = 3;
-    string username = 4;
-    int32  reason = 5;
+    message SessionStart {
+        string sessionID = 1;
+        string userID = 2;
+        string username = 3;
+        string clientIP = 4;
+        string clientPort = 5;
+        int32 format = 6;
+        string status = 7;
+        string lang = 8;
+        int64 expiry = 9;
+        map<string, string> vars = 10;
+    }
+    
+    message SessionEnd {
+        string sessionID = 1;
+        string userID = 2;
+        string msg = 3;
+        int32  reason = 4;
+    }
 }

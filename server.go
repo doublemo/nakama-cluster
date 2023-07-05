@@ -3,6 +3,8 @@ package nakamacluster
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -10,8 +12,11 @@ import (
 	"sync/atomic"
 
 	"github.com/doublemo/nakama-cluster/api"
+	"github.com/doublemo/nakama-cluster/endpoint"
 	"github.com/doublemo/nakama-cluster/sd"
+	"github.com/doublemo/nakama-cluster/sd/etcdv3"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	sockaddr "github.com/hashicorp/go-sockaddr"
 	"github.com/shimingyah/pool"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -48,8 +53,10 @@ type Server struct {
 	config     *Config
 	peers      Peer
 	delegate   atomic.Value
-	meta       atomic.Value
-	wathcer    *Watcher
+	endpoint   endpoint.Endpoint
+	registrar  sd.Registrar
+	instancer  sd.Instancer
+	endpointer *sd.DefaultEndpointer
 	grpcServer *grpc.Server
 	logger     *zap.Logger
 	once       sync.Once
@@ -58,6 +65,9 @@ type Server struct {
 func (s *Server) Stop() {
 	s.once.Do(func() {
 		if s.cancelFn != nil {
+			s.endpointer.Close()
+			s.instancer.Stop()
+			s.registrar.Deregister()
 			s.cancelFn()
 		}
 	})
@@ -69,6 +79,10 @@ func (s *Server) OnDelegate(delegate ServerDelegate) {
 
 func (s *Server) GetPeers() Peer {
 	return s.peers
+}
+
+func (s *Server) Rpc(ctx context.Context, serviceName string, in *api.Envelope) (*api.Envelope, error) {
+	return s.peers.Do(ctx, serviceName, in)
 }
 
 func (s *Server) Call(ctx context.Context, in *api.Envelope) (*api.Envelope, error) {
@@ -147,62 +161,48 @@ IncomingLoop:
 	return nil
 }
 
-func (s *Server) GetMeta() *Meta {
-	meta, ok := s.meta.Load().(*Meta)
-	if !ok || meta == nil {
-		return nil
+func (s *Server) UpdateMeta(vars map[string]string) error {
+	for k, v := range vars {
+		s.endpoint.SetVar(k, v)
 	}
-
-	return meta.Clone()
+	return nil
 }
 
-func (s *Server) UpdateMeta(status MetaStatus, vars map[string]string) error {
-	meta := s.GetMeta()
-	meta.Status = status
-	meta.Vars = vars
-	s.meta.Store(meta)
-
-	return s.wathcer.Update(meta)
-}
-
-func (s *Server) onUpdate(metas []*Meta) {
-	nodes := make([]*Meta, 0, len(metas))
-	for _, meta := range metas {
-		if meta.Type == NODE_TYPE_MICROSERVICES && meta.Name == NAKAMA {
-			s.logger.Warn("Invalid node name", zap.String("ID", meta.Id))
-			continue
-		}
-		nodes = append(nodes, meta)
-	}
-	s.peers.Sync(nodes...)
-}
-
-func NewServer(ctx context.Context, logger *zap.Logger, sdclient sd.Client, id, name string, vars map[string]string, config Config) *Server {
+func NewServer(ctx context.Context, logger *zap.Logger, sdclient etcdv3.Client, id, name string, vars map[string]string, config Config) *Server {
 	ctx, cancel := context.WithCancel(ctx)
-	meta := NewNodeMetaFromConfig(id, name, NODE_TYPE_MICROSERVICES, vars, config)
+	local, err := NewGRPCEndpoint(id, name, vars, config)
+	if err != nil {
+		logger.Panic("Failed to NewGRPCEndpoint", zap.Error(err))
+	}
 
 	s := &Server{
 		ctx:      ctx,
 		cancelFn: cancel,
-		peers: NewPeer(ctx, logger, PeerOptions{
-			MaxIdle:              config.GrpcPoolMaxIdle,
-			MaxActive:            config.GrpcPoolMaxActive,
-			MaxConcurrentStreams: config.GrpcPoolMaxConcurrentStreams,
-			Reuse:                config.GrpcPoolReuse,
-			MessageQueueSize:     config.MaxGossipPacketSize,
-		}),
-		logger: logger,
-		config: &config,
+		peers:    NewLocalPeer(ctx, logger, sdclient, &config),
+		logger:   logger,
+		config:   &config,
+		registrar: etcdv3.NewRegistrar(sdclient, etcdv3.Service{
+			Key:   config.Prefix + local.Name() + "/" + local.ID(),
+			Value: local.String(),
+		}, logger),
+		endpoint: local,
 	}
-	s.meta.Store(meta)
-	s.wathcer = NewWatcher(ctx, logger, sdclient, config.Prefix, meta)
-	metas, err := s.wathcer.GetEntries()
-	if err != nil {
-		logger.Fatal(err.Error())
-	}
-	s.onUpdate(metas)
-	s.wathcer.OnUpdate(s.onUpdate)
+
 	s.grpcServer = newGrpcServer(logger, s, config)
+	s.registrar.Register()
+	instancer, err := etcdv3.NewInstancer(sdclient, config.Prefix, logger)
+	if err != nil {
+		s.registrar.Deregister()
+		logger.Panic("Failed to etcdv3.NewInstancer", zap.Error(err))
+	}
+	s.instancer = instancer
+	s.endpointer = sd.NewEndpointer(instancer, func(instance string) (endpoint.Endpoint, io.Closer, error) {
+		node := endpoint.New("", "", "", nil, func(ctx context.Context, request interface{}) (response interface{}, err error) {
+			return nil, nil
+		})
+		node.FromString(instance)
+		return node, nil, nil
+	}, logger)
 	return s
 }
 
@@ -221,6 +221,12 @@ func newGrpcServer(logger *zap.Logger, srv api.ApiServerServer, c Config) *grpc.
 		}),
 	}
 
+	if len(c.GrpcToken) > 0 {
+		opts = append(opts,
+			grpc.ChainStreamInterceptor(ensureStreamValidToken(c), grpc_prometheus.StreamServerInterceptor),
+			grpc.ChainUnaryInterceptor(ensureValidToken(c), grpc_prometheus.UnaryServerInterceptor))
+	}
+
 	if len(c.GrpcX509Key) > 0 && len(c.GrpcX509Pem) > 0 {
 		cert, err := tls.LoadX509KeyPair(c.GrpcX509Pem, c.GrpcX509Key)
 		if err != nil {
@@ -228,8 +234,6 @@ func newGrpcServer(logger *zap.Logger, srv api.ApiServerServer, c Config) *grpc.
 		}
 
 		opts = append(opts,
-			grpc.ChainStreamInterceptor(ensureStreamValidToken(c), grpc_prometheus.StreamServerInterceptor),
-			grpc.ChainUnaryInterceptor(ensureValidToken(c), grpc_prometheus.UnaryServerInterceptor),
 			grpc.Creds(credentials.NewServerTLSFromCert(&cert)),
 		)
 	}
@@ -297,4 +301,20 @@ func ensureStreamValidToken(config Config) grpc.StreamServerInterceptor {
 		// Continue execution of handler after ensuring a valid token.
 		return handler(srv, ss)
 	}
+}
+
+func NewGRPCEndpoint(id, name string, vars map[string]string, config Config) (endpoint.Endpoint, error) {
+	addr := ""
+	ip, err := net.ResolveIPAddr("ip", config.Addr)
+	if err == nil && config.Addr != "" && config.Addr != "0.0.0.0" {
+		addr = ip.String()
+	} else {
+		addr, err = sockaddr.GetPrivateIP()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	vars["domian"] = config.Domain
+	return endpoint.New(id, name, fmt.Sprintf("%s:%d", addr, config.Port), vars, nil), nil
 }

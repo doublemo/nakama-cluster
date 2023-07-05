@@ -1,5 +1,16 @@
 package nakamacluster
 
+type EtcdConfig struct {
+	Endpoints     []string `yaml:"endpoints" json:"endpoints" usage:"Endpoints is a list of URLs."`
+	Cert          string   `yaml:"cert" json:"cert" usage:"Cert is the _server_ cert, it will also be used as a _client_ certificate if ClientCertFile is empty"`
+	Key           string   `yaml:"key" json:"key" usage:"Key is the key for the Cert."`
+	CACert        string   `yaml:"ca_cert" json:"ca_cert" usage:"CACert is the key for the Cert."`
+	DialTimeout   int      `yaml:"dial_timeout" json:"dial_timeout" usage:"DialTimeout is the timeout for failing to establish a connection."`
+	DialKeepAlive int      `yaml:"dial_keep_alive" json:"dial_keep_alive" usage:"DialKeepAliveTime is the time after which client pings the server to see if transport is alive."`
+	Username      string   `yaml:"username" json:"username" usage:"Username is a user name for authentication."`
+	Password      string   `yaml:"password" json:"password" usage:"Password is a password for authentication."`
+}
+
 // 集群配置
 type Config struct {
 	Addr                         string `yaml:"gossip_bindaddr" json:"gossip_bindaddr" usage:"Interface address to bind Nakama to for discovery. By default listening on all interfaces."`
@@ -17,6 +28,8 @@ type Config struct {
 	BroadcastQueueSize           int    `yaml:"broadcast_queue_size" json:"broadcast_queue_size" usage:"broadcast message queue size"`
 	GrpcX509Pem                  string `yaml:"grpc_x509_pem" json:"grpc_x509_pem" usage:"ssl pem"`
 	GrpcX509Key                  string `yaml:"grpc_x509_key" json:"grpc_x509_key" usage:"ssl key"`
+	GrpcX509CA                   string `yaml:"grpc_x509_ca" json:"grpc_x509_ca" usage:"ssl pem"`
+	GrpcServerHostOverride       string `yaml:"grpc_server_host_override" json:"grpc_server_host_override" usage:"ssl pem"`
 	GrpcToken                    string `yaml:"grpc_token" json:"grpc_token" usage:"token"`
 	GrpcPoolMaxIdle              int    `yaml:"grpc_pool_max_idle" json:"grpc_pool_max_idle" usage:"Maximum number of idle connections in the grpc pool"`
 	GrpcPoolMaxActive            int    `yaml:"grpc_pool_max_active" json:"grpc_pool_max_active" usage:"Maximum number of connections allocated by the grpc pool at a given time."`
