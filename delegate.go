@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/doublemo/nakama-cluster/api"
+	"github.com/doublemo/nakama-cluster/endpoint"
 	"github.com/hashicorp/memberlist"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
@@ -17,16 +18,16 @@ type Delegate interface {
 	MergeRemoteState(buf []byte, join bool)
 
 	// NotifyJoin 接收节点加入通知
-	NotifyJoin(node *Meta)
+	NotifyJoin(node endpoint.Endpoint)
 
 	// NotifyLeave 接收节点离线通知
-	NotifyLeave(node *Meta)
+	NotifyLeave(node endpoint.Endpoint)
 
 	// NotifyUpdate 接收节点更新通知
-	NotifyUpdate(node *Meta)
+	NotifyUpdate(node endpoint.Endpoint)
 
 	// NotifyAlive 接收节点活动通知
-	NotifyAlive(node *Meta) error
+	NotifyAlive(node endpoint.Endpoint) error
 
 	// NotifyMsg 接收节来至其它节点的信息
 	NotifyMsg(node string, msg []byte) []byte
@@ -122,7 +123,13 @@ func (s *Client) NotifyJoin(node *memberlist.Node) {
 	s.Unlock()
 
 	if fn, ok := s.delegate.Load().(Delegate); ok && fn != nil {
-		fn.NotifyJoin(NewNodeMetaFromJSON(node.Meta))
+		ed := endpoint.New("", "", "", nil, nil)
+		if err := ed.FromString(string(node.Meta)); err != nil {
+			s.logger.Warn("Invalid meta", zap.Error(err))
+			return
+		}
+
+		fn.NotifyJoin(ed)
 	}
 }
 
@@ -134,7 +141,12 @@ func (s *Client) NotifyLeave(node *memberlist.Node) {
 	s.Unlock()
 
 	if fn, ok := s.delegate.Load().(Delegate); ok && fn != nil {
-		fn.NotifyLeave(NewNodeMetaFromJSON(node.Meta))
+		ed := endpoint.New("", "", "", nil, nil)
+		if err := ed.FromString(string(node.Meta)); err != nil {
+			s.logger.Warn("Invalid meta", zap.Error(err))
+			return
+		}
+		fn.NotifyLeave(ed)
 	}
 }
 
@@ -147,14 +159,24 @@ func (s *Client) NotifyUpdate(node *memberlist.Node) {
 	s.Unlock()
 
 	if fn, ok := s.delegate.Load().(Delegate); ok && fn != nil {
-		fn.NotifyUpdate(NewNodeMetaFromJSON(node.Meta))
+		ed := endpoint.New("", "", "", nil, nil)
+		if err := ed.FromString(string(node.Meta)); err != nil {
+			s.logger.Warn("Invalid meta", zap.Error(err))
+			return
+		}
+		fn.NotifyUpdate(ed)
 	}
 }
 
 // NotifyAlive implements the memberlist.AliveDelegate interface.
 func (s *Client) NotifyAlive(node *memberlist.Node) error {
 	if fn, ok := s.delegate.Load().(Delegate); ok && fn != nil {
-		return fn.NotifyAlive(NewNodeMetaFromJSON(node.Meta))
+		ed := endpoint.New("", "", "", nil, nil)
+		if err := ed.FromString(string(node.Meta)); err != nil {
+			s.logger.Warn("Invalid meta", zap.Error(err))
+			return err
+		}
+		return fn.NotifyAlive(ed)
 	}
 
 	return nil

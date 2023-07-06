@@ -14,11 +14,13 @@ import (
 
 	nakamacluster "github.com/doublemo/nakama-cluster"
 	"github.com/doublemo/nakama-cluster/api"
+	"github.com/doublemo/nakama-cluster/endpoint"
 	"github.com/doublemo/nakama-cluster/sd/etcdv3"
 	"github.com/uber-go/tally/v4"
 	"github.com/uber-go/tally/v4/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"google.golang.org/grpc/metadata"
 )
 
 type Delegate struct {
@@ -39,23 +41,23 @@ func (s *Delegate) MergeRemoteState(buf []byte, join bool) {
 }
 
 // NotifyJoin 接收节点加入通知
-func (s *Delegate) NotifyJoin(node *nakamacluster.Meta) {
-	s.logger.Info("Call NotifyJoin", zap.Any("meta", node))
+func (s *Delegate) NotifyJoin(node endpoint.Endpoint) {
+	s.logger.Info("Call NotifyJoin", zap.String("meta", node.String()))
 }
 
 // NotifyLeave 接收节点离线通知
-func (s *Delegate) NotifyLeave(node *nakamacluster.Meta) {
-	s.logger.Info("Call NotifyLeave", zap.Any("meta", node))
+func (s *Delegate) NotifyLeave(node endpoint.Endpoint) {
+	s.logger.Info("Call NotifyLeave", zap.String("meta", node.String()))
 }
 
 // NotifyUpdate 接收节点更新通知
-func (s *Delegate) NotifyUpdate(node *nakamacluster.Meta) {
-	s.logger.Info("Call NotifyUpdate", zap.Any("meta", node))
+func (s *Delegate) NotifyUpdate(node endpoint.Endpoint) {
+	s.logger.Info("Call NotifyUpdate", zap.String("meta", node.String()))
 }
 
 // NotifyAlive 接收节点活动通知
-func (s *Delegate) NotifyAlive(node *nakamacluster.Meta) error {
-	//s.logger.Info("Call NotifyAlive", zap.Any("meta", node))
+func (s *Delegate) NotifyAlive(node endpoint.Endpoint) error {
+	s.logger.Info("Call NotifyAlive", zap.String("meta", node.String()))
 	return nil
 }
 
@@ -73,6 +75,12 @@ func (s *Delegate) Call(ctx context.Context, in *api.Envelope) (*api.Envelope, e
 
 // Stream rpc stream
 func (s *Delegate) Stream(ctx context.Context, client func(out *api.Envelope) bool, in *api.Envelope) error {
+	s.logger.Info("stream", zap.String("CID", in.Cid.String()))
+	client(&api.Envelope{
+		Cid: api.Message_SESSIONSTART,
+		Payload: &api.Envelope_Error{
+			Error: &api.Error{Code: 501, Message: s.conn.GetLocalNode().Name}}})
+
 	return nil
 }
 
@@ -111,14 +119,14 @@ func main() {
 	c.Prefix = "/nk/samples/"
 	serverId := fmt.Sprintf("node-%d", rand.Intn(10000))
 	vars := map[string]string{"weight": "1", "nakama-rpc": strconv.Itoa(c.Port)}
-	node := nakamacluster.NewNodeMetaFromConfig(serverId, "nakama", nakamacluster.NODE_TYPE_NAKAMA, vars, *c)
+	node, _ := nakamacluster.NewNakaMaEndpoint(serverId, vars, *c)
 	// Create Prometheus reporter and root scope.
 	reporter := prometheus.NewReporter(prometheus.Options{
 		OnRegisterError: func(err error) {
 			log.Error("Error registering Prometheus metric", zap.Error(err))
 		},
 	})
-	tags := map[string]string{"node_name": node.Id}
+	tags := map[string]string{"node_name": node.ID()}
 	scope, scopeCloser := tally.NewRootScope(tally.ScopeOptions{
 		Prefix:          "/testv",
 		Tags:            tags,
@@ -146,6 +154,13 @@ func main() {
 	go func() {
 		t := time.NewTicker(time.Second * 10)
 		defer t.Stop()
+
+		ch := make(chan *api.Envelope, 10)
+		stream, err := ss.GetPeers().Connect(ctx, "CC", ch, metadata.Pairs("sss", "dd"))
+		if err != nil {
+			panic(err)
+		}
+
 		for {
 			select {
 			case <-t.C:
@@ -156,7 +171,13 @@ func main() {
 				res, err := ss.Rpc(context.Background(), "CC", &api.Envelope{Cid: api.Message_ZERO})
 				fmt.Println("---send zero---", res, err)
 
+				fmt.Println("sream send:", stream.Send(&api.Envelope{Cid: api.Message_SESSIONEND}))
+
+			case m := <-ch:
+				fmt.Println("---sream recv---", m.Cid, m.Payload)
+
 			case <-ctx.Done():
+				return
 			}
 		}
 	}()

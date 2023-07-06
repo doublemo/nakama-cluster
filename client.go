@@ -111,6 +111,7 @@ func (s *Client) Stop() {
 			s.endpointer.Close()
 			s.instancer.Stop()
 			s.registrar.Deregister()
+			s.peers.Close()
 			s.cancelFn()
 		}
 	})

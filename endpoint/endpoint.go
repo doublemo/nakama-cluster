@@ -17,6 +17,8 @@ type Endpoint interface {
 	Process(ctx context.Context, request interface{}) (response interface{}, err error)
 	SetProcessFunc(process EndpointFunc)
 	FromString(s string) error
+	Domain() string
+	RemoteAddress() (string, error)
 }
 
 type LocalEndpoint struct {
@@ -56,6 +58,12 @@ func (endpoint *LocalEndpoint) Address() string {
 	endpoint.RLock()
 	defer endpoint.RUnlock()
 	return endpoint.values.Get("addr")
+}
+
+func (endpoint *LocalEndpoint) Domain() string {
+	endpoint.RLock()
+	defer endpoint.RUnlock()
+	return endpoint.values.Get("domain")
 }
 
 func (endpoint *LocalEndpoint) Var(k string, defaultValues ...string) string {
@@ -107,6 +115,20 @@ func (endpoint *LocalEndpoint) FromString(s string) error {
 	endpoint.values = values
 	endpoint.Unlock()
 	return nil
+}
+
+func (endpoint *LocalEndpoint) RemoteAddress() (string, error) {
+	domain := endpoint.Domain()
+	if len(domain) < 1 {
+		domain = endpoint.Address()
+	} else {
+		uri, err := url.Parse(domain)
+		if err != nil {
+			return "", err
+		}
+		domain = uri.Host + ":" + uri.Port()
+	}
+	return domain, nil
 }
 
 var Nop = New("Nop", "Nop", "", make(map[string]string), nil)

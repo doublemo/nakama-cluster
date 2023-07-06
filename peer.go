@@ -2,6 +2,7 @@ package nakamacluster
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -11,24 +12,33 @@ import (
 	"github.com/doublemo/nakama-cluster/sd"
 	"github.com/doublemo/nakama-cluster/sd/etcdv3"
 	"github.com/doublemo/nakama-cluster/sd/lb"
-	"github.com/shimingyah/pool"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/metadata"
 )
 
 type Peer interface {
+	Endpointer(serviceName string) (*PeerEndpointer, error)
 	Do(ctx context.Context, serviceName string, in *api.Envelope) (*api.Envelope, error)
+	Connect(ctx context.Context, serviceName string, ch chan *api.Envelope, md metadata.MD) (*PeerStream, error)
+	Close()
 }
 
 type LocalPeer struct {
+	ctx         context.Context
+	ctxCancelFn context.CancelFunc
 	sdclient    etcdv3.Client
 	config      *Config
 	logger      *zap.Logger
 	endpointers map[string]*PeerEndpointer
+	once        sync.Once
 	sync.RWMutex
 }
 
 func NewLocalPeer(ctx context.Context, logger *zap.Logger, sdClient etcdv3.Client, config *Config) *LocalPeer {
+	ctx, cancel := context.WithCancel(ctx)
 	return &LocalPeer{
+		ctx:         ctx,
+		ctxCancelFn: cancel,
 		sdclient:    sdClient,
 		config:      config,
 		logger:      logger,
@@ -36,25 +46,48 @@ func NewLocalPeer(ctx context.Context, logger *zap.Logger, sdClient etcdv3.Clien
 	}
 }
 
-func (s *LocalPeer) Do(ctx context.Context, serviceName string, in *api.Envelope) (*api.Envelope, error) {
+func (s *LocalPeer) Endpointer(serviceName string) (*PeerEndpointer, error) {
 	s.RLock()
 	service, ok := s.endpointers[serviceName]
 	s.RUnlock()
 
-	var err error
-	if !ok {
-		service, err = s.registerSevice(serviceName)
-		if err != nil {
-			return nil, err
-		}
+	if ok {
+		return service, nil
 	}
 
-	response, err := lb.Retry(10, time.Second*30, service.balancer).Process(ctx, in)
+	return s.registerSevice(serviceName)
+}
+
+func (s *LocalPeer) Do(ctx context.Context, serviceName string, in *api.Envelope) (*api.Envelope, error) {
+	endpointer, err := s.Endpointer(serviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := lb.Retry(10, time.Second*30, endpointer.balancer).Process(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 
 	return response.(*api.Envelope), nil
+}
+
+func (s *LocalPeer) Connect(ctx context.Context, serviceName string, ch chan *api.Envelope, md metadata.MD) (*PeerStream, error) {
+	endpointer, err := s.Endpointer(serviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	balancer := endpointer.Balancer()
+	if balancer == nil {
+		return nil, errors.New("balancer is nil")
+	}
+
+	endpoint, err := balancer.Endpoint()
+	if err != nil {
+		return nil, err
+	}
+	return endpointer.NewStream(endpoint, ch, md, *s.config)
 }
 
 func (s *LocalPeer) registerSevice(serviceName string) (*PeerEndpointer, error) {
@@ -63,14 +96,10 @@ func (s *LocalPeer) registerSevice(serviceName string) (*PeerEndpointer, error) 
 		return nil, err
 	}
 
-	peerEndpointer := &PeerEndpointer{
-		instancer: instancer,
-		pools:     make(map[string]pool.Pool),
-	}
-
-	endpointer := sd.NewEndpointer(instancer, s.factory(instancer, peerEndpointer), s.logger, sd.InvalidateOnError(time.Minute))
-	peerEndpointer.endpointer = endpointer
-	peerEndpointer.balancer = lb.NewRoundRobin(endpointer)
+	peerEndpointer := NewPeerEndpointer(s.ctx, instancer)
+	endpointer := sd.NewEndpointer(instancer, s.factory(instancer, peerEndpointer), s.logger, sd.InvalidateOnError(time.Second*3))
+	peerEndpointer.SetEndpointer(endpointer)
+	peerEndpointer.SetBalancer(lb.NewRoundRobin(endpointer))
 	s.Lock()
 	s.endpointers[serviceName] = peerEndpointer
 	s.Unlock()
@@ -104,4 +133,12 @@ func (s *LocalPeer) factory(instancer sd.Instancer, peerEndpointer *PeerEndpoint
 			return peerEndpointer.ClosePool(node.ID())
 		}), nil
 	}
+}
+
+func (s *LocalPeer) Close() {
+	s.once.Do(func() {
+		if s.ctxCancelFn != nil {
+			s.ctxCancelFn()
+		}
+	})
 }

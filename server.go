@@ -68,6 +68,7 @@ func (s *Server) Stop() {
 			s.endpointer.Close()
 			s.instancer.Stop()
 			s.registrar.Deregister()
+			s.peers.Close()
 			s.cancelFn()
 		}
 	})
@@ -158,13 +159,6 @@ IncomingLoop:
 	}
 
 	fn.OnStreamClose(in.Context())
-	return nil
-}
-
-func (s *Server) UpdateMeta(vars map[string]string) error {
-	for k, v := range vars {
-		s.endpoint.SetVar(k, v)
-	}
 	return nil
 }
 
