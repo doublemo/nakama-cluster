@@ -47,9 +47,17 @@ message Error {
 
 message Message {
     enum MsgID {
-        ZERO = 0;
+        BROADCAST = 0;
         SESSIONSTART = 1;
         SESSIONEND = 2;
+        STATE = 3;
+        ENVELOPE = 4;
+        TRACK = 5;
+        UNTRACK = 6;
+        UNTRACKALL = 7;
+        UNTRACKBYSTREAM = 8;
+        UNTRACKBYMODES = 9;
+        TRACKUPDATE = 10;
     }
 
     message SessionStart {
@@ -70,5 +78,73 @@ message Message {
         string userID = 2;
         string msg = 3;
         int32  reason = 4;
+    }
+
+    message PresenceStream {
+        int32  mode = 1;
+        string subject = 2;
+        string subcontext = 3;
+        string label = 4;
+    }
+
+    message PresenceMeta {
+        int32  format = 1;
+        bool   hidden = 2;
+        bool   persistence = 3;
+        string username = 4;
+        string status = 5;
+        uint32 reason = 6;
+    }
+
+    message PresenceID {
+        string node = 1;
+        string sessionID = 2;
+    }
+
+    message Presence {
+        PresenceID id = 1;
+        PresenceStream stream = 2;
+        string userID = 3;
+        PresenceMeta meta = 4;
+    }
+
+    message State{
+        string node = 1;
+        repeated Presence presences = 2;
+    }
+
+    message Track{
+        repeated Presence presences = 1;
+    }
+
+    message Untrack{
+        repeated Presence presences = 1;
+    }
+
+    message UntrackAll{
+        string sessionID = 1; 
+        int32 reason = 2;
+    }
+
+    message UntrackByStream{
+        repeated PresenceStream streams = 1;
+    }
+
+    message UntrackByMode{
+        repeated int32 modes = 1;
+        PresenceStream skipStream = 2;
+        string sessionID = 3;
+    }
+
+    message TrackUpdate{
+        string sessionID = 1;
+        string userID = 2;
+        PresenceStream stream = 3;
+        PresenceMeta meta = 4;
+    }
+
+    message Envelope {
+        map<string, bool> sessionID = 1;
+        bytes message = 2; 
     }
 }

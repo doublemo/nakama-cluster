@@ -3,6 +3,7 @@ package nakamacluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -248,5 +249,6 @@ func (pe *PeerEndpointer) Close() {
 		}
 
 		pe.instancer.Stop()
+		fmt.Println("a ...any", pe)
 	})
 }

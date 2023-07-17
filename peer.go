@@ -36,7 +36,7 @@ type LocalPeer struct {
 
 func NewLocalPeer(ctx context.Context, logger *zap.Logger, sdClient etcdv3.Client, config *Config) *LocalPeer {
 	ctx, cancel := context.WithCancel(ctx)
-	return &LocalPeer{
+	s := &LocalPeer{
 		ctx:         ctx,
 		ctxCancelFn: cancel,
 		sdclient:    sdClient,
@@ -44,6 +44,11 @@ func NewLocalPeer(ctx context.Context, logger *zap.Logger, sdClient etcdv3.Clien
 		logger:      logger,
 		endpointers: make(map[string]*PeerEndpointer),
 	}
+
+	go func() {
+
+	}()
+	return s
 }
 
 func (s *LocalPeer) Endpointer(serviceName string) (*PeerEndpointer, error) {
@@ -64,11 +69,10 @@ func (s *LocalPeer) Do(ctx context.Context, serviceName string, in *api.Envelope
 		return nil, err
 	}
 
-	response, err := lb.Retry(10, time.Second*30, endpointer.balancer).Process(ctx, in)
+	response, err := lb.Retry(3, time.Second*30, endpointer.balancer).Process(ctx, in)
 	if err != nil {
 		return nil, err
 	}
-
 	return response.(*api.Envelope), nil
 }
 

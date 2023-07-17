@@ -70,7 +70,7 @@ func (s *Delegate) NotifyMsg(node string, msg []byte) []byte {
 // Call rpc call
 func (s *Delegate) Call(ctx context.Context, in *api.Envelope) (*api.Envelope, error) {
 	s.logger.Info("Call", zap.String("CID", in.Cid.String()))
-	return &api.Envelope{Cid: api.Message_ZERO, Payload: &api.Envelope_Error{Error: &api.Error{Code: 500, Message: s.conn.GetLocalNode().Name}}}, nil
+	return &api.Envelope{Cid: api.Message_BROADCAST, Payload: &api.Envelope_Error{Error: &api.Error{Code: 500, Message: s.conn.GetLocalNode().Name}}}, nil
 }
 
 // Stream rpc stream
@@ -168,7 +168,7 @@ func main() {
 				binary.BigEndian.PutUint32(data, rand.Uint32())
 				s.Send(nakamacluster.NewMessage([]byte("1919")))
 
-				res, err := ss.Rpc(context.Background(), "CC", &api.Envelope{Cid: api.Message_ZERO})
+				res, err := ss.Rpc(context.Background(), "CCccc", &api.Envelope{Cid: api.Message_BROADCAST})
 				fmt.Println("---send zero---", res, err)
 
 				fmt.Println("sream send:", stream.Send(&api.Envelope{Cid: api.Message_SESSIONEND}))
@@ -211,4 +211,6 @@ func main() {
 	log.Info("服务已经关闭")
 	scopeCloser.Close()
 	cancel()
+	s.Stop()
+	ss.Stop()
 }
